@@ -1,7 +1,9 @@
 # Pen & Ink Tracker — Downloads
 
-This folder has two ways to install Pen & Ink Tracker, depending on your
-computer.
+There are two ways to install Pen & Ink Tracker, depending on your computer.
+Download either file from the
+[Releases page](https://github.com/pentracereader-cmyk/penandinktracker/releases/latest)
+(under **Assets**).
 
 | File | Platform | What it is |
 |------|----------|------------|
@@ -9,7 +11,7 @@ computer.
 | `PenInkTracker-1.0.0.zip` | **Mac, Linux, or Windows** | The app's source, plus a double-click launcher for each OS. Requires Python 3 (free). |
 
 There is currently no standalone `.app`/`.dmg` installer for Mac — use the
-zip below instead. It only takes a couple of extra minutes and works
+zip instead. It only takes a couple of extra minutes and works
 identically once installed.
 
 ## Installing on a Mac
@@ -44,7 +46,7 @@ No Python install needed. (Windows SmartScreen may warn about an
 unrecognized publisher on first run — this build isn't code-signed yet;
 choose **More info → Run anyway** if you trust the source.)
 
-Alternatively, the same `PenInkTracker-1.0.0.zip` above also works on
+Alternatively, `PenInkTracker-1.0.0.zip` also works on
 Windows via `Start on Windows.bat`, if you'd rather not run a standalone
 `.exe`.
 
