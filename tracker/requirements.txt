@@ -1,0 +1,7 @@
+# The tracker runs entirely on the Python standard library — including the
+# DEFAULT AI auto-fill provider (Google Gemini, called over plain HTTPS).
+# So for normal use you do NOT need to install anything.
+#
+# Install this ONLY if you switch the provider to Anthropic/Claude in config.json:
+#   pip install -r tracker/requirements.txt
+anthropic>=0.69

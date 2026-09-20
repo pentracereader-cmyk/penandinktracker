@@ -1,0 +1,10 @@
+{
+  "_comment": "Copy this file to config.json (it is NOT served to the browser) and add your key. Default provider is Google Gemini's FREE tier — get a free key at https://aistudio.google.com/apikey (needs a Google login). No pip install is required for Gemini; it uses the Python standard library. Keys may also be supplied via env vars GEMINI_API_KEY or ANTHROPIC_API_KEY.",
+  "provider": "gemini",
+  "gemini_api_key": "AIza...",
+  "gemini_model": "gemini-2.5-flash",
+  "enable_web_search": true,
+  "_anthropic_note": "To use Claude instead, set provider to 'anthropic', fill anthropic_api_key, and run: pip install anthropic. Note a Claude Pro/Max subscription does NOT include API access — that is billed separately per token.",
+  "anthropic_api_key": "sk-ant-...",
+  "model": "claude-opus-4-8"
+}

@@ -1,0 +1,2899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0F1319">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pen &amp; Ink">
+<title>Pen &amp; Ink Tracker</title>
+<style>
+:root{
+  --bg:#0F1319; --panel:#171C24; --panel2:#1F2530; --line:#2C3440;
+  --txt:#E8EAEE; --muted:#97A0AE;
+  --accent:#D4AF37; --accent2:#B8952C;
+  --good:#3FB27F; --warn:#E08A3C; --bad:#E05C4A; --gift:#9B7BD6;
+  --sunken:#12161C;      /* recessed wells, chart tracks */
+  --border-ctl:#6B7488;  /* control boundaries — 3.28:1, WCAG 1.4.11 */
+  --on-accent:#0F1319;   /* text/icons on an accent fill — 8.86:1 */
+  --radius:12px; --shadow:0 8px 30px rgba(0,0,0,.45);
+  --sans:-apple-system,"Segoe UI",system-ui,Roboto,sans-serif;
+  --serif:"Iowan Old Style",Georgia,"Times New Roman",serif;
+}
+*{box-sizing:border-box}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:15px/1.5 var(--sans)}
+button{font:inherit;cursor:pointer}
+a{color:var(--accent)}
+input,select,textarea{font:inherit}
+.hidden{display:none!important}
+
+/* header */
+#hdr{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:14px;
+  padding:12px 20px;background:rgba(15,19,25,.92);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line)}
+#brand{font-weight:700;font-size:18px;letter-spacing:.3px;white-space:nowrap}
+#brand span{color:var(--muted);font-weight:400;font-size:13px}
+#tabs{display:flex;gap:4px;margin-left:8px}
+.tab{background:transparent;border:1px solid transparent;color:var(--muted);
+  padding:7px 14px;border-radius:8px}
+.tab.active{background:var(--panel2);color:var(--txt);border-color:var(--line)}
+#search{flex:1;max-width:420px;margin-left:auto;background:var(--panel2);
+  border:1px solid var(--border-ctl);color:var(--txt);padding:9px 12px;border-radius:9px}
+#searchIconBtn{display:none;background:none;border:none;color:var(--muted);width:40px;height:40px;
+  border-radius:9px;align-items:center;justify-content:center}
+#searchIconBtn svg{width:19px;height:19px}
+.btn{background:var(--accent);color:var(--on-accent);border:none;padding:9px 16px;border-radius:9px;font-weight:600}
+.btn.sec{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.btn.danger{background:var(--bad)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+#layout{display:flex;align-items:flex-start}
+#side{width:230px;flex:none;padding:18px 14px;position:sticky;top:57px;
+  height:calc(100vh - 57px);overflow:auto;border-right:1px solid var(--line)}
+#main{flex:1;padding:18px 22px;min-width:0}
+.fgroup{margin-bottom:18px}
+.fgroup h4{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);
+  border:1px solid var(--line);color:var(--txt);padding:5px 10px;border-radius:20px;
+  font-size:13px;margin:0 6px 6px 0}
+.chip.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.chip small{color:var(--muted)}
+.chip.on small{color:var(--on-accent);opacity:.75}
+.chip.more{background:transparent;border-style:dashed;color:var(--muted)}
+
+#meta{display:flex;align-items:center;gap:14px;margin-bottom:14px;color:var(--muted);font-size:13px}
+#meta .spacer{flex:1}
+.viewtog{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.viewtog button{background:var(--panel);border:none;color:var(--muted);padding:6px 12px}
+.viewtog button.on{background:var(--panel2);color:var(--txt)}
+
+/* pens: gallery/compact segmented toggle */
+.segs{display:flex;gap:2px;padding:3px;background:var(--panel2);border:1px solid var(--line);border-radius:8px}
+.segs button{background:none;border:0;color:var(--muted);font:600 12.5px/1 var(--sans);
+  padding:7px 12px;border-radius:6px;cursor:pointer}
+.segs button.on{background:var(--panel);color:var(--txt)}
+
+/* pens: gallery cards (photo-first, uniform height so the grid never reflows) */
+#cards.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:16px}
+.gcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  overflow:hidden;cursor:pointer;padding:0;text-align:left;font:inherit;color:inherit;width:100%;
+  display:flex;flex-direction:column;transition:transform .08s,border-color .08s}
+.gcard:hover{transform:translateY(-2px);border-color:var(--accent2)}
+.gcard .media{aspect-ratio:3/2;position:relative;background:var(--sunken);display:grid;
+  place-items:center;overflow:hidden}
+.gcard .media img{width:100%;height:100%;object-fit:cover;display:block}
+.gcard .media .sil{width:84%;max-width:204px;height:auto}
+.gcard .media .pend{position:absolute;left:8px;bottom:8px;font:600 9.5px/1 var(--sans);
+  letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--panel);
+  border:1px solid var(--line);border-radius:999px;padding:4px 7px}
+.gcard .media .cnt{position:absolute;right:8px;bottom:8px;font:600 10px/1 var(--sans);
+  color:#fff;background:rgba(8,11,15,.66);border-radius:999px;padding:4px 8px}
+.gcard .media .badge{position:absolute;top:8px;right:8px;margin:0;box-shadow:0 1px 3px rgba(0,0,0,.28)}
+.gcard .gb{padding:10px 12px 12px;flex:1;display:flex;flex-direction:column}
+.gcard .nm{font-family:var(--serif);font-size:13.5px;font-weight:700;line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gcard .mat{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:var(--muted);overflow:hidden}
+.gcard .mat span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gcard .spec{margin-top:5px;font:600 10px/1 var(--sans);letter-spacing:.07em;text-transform:uppercase;color:var(--accent)}
+.gcard .foot{display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin-top:auto;padding-top:9px;
+  border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.gcard .foot .paid{font-size:11.5px;color:var(--muted)}
+.gcard .foot .est{font-size:14px;font-weight:700}
+
+/* pens: compact rows (nib-forward) */
+#cards.compact{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:8px}
+.pen{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:12px;cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%;
+  transition:border-color .08s}
+.pen:hover{border-color:var(--accent2);background:var(--panel2)}
+.pen .nib,.pen .media{width:44px;height:60px;display:block;object-fit:cover;border-radius:6px}
+.pen .mid{min-width:0}
+.pen .nm{font-family:var(--serif);font-size:14px;font-weight:700;line-height:1.25;letter-spacing:-.01em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pen .mat{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12.5px;color:var(--muted);overflow:hidden}
+.pen .mat span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pen .spec{margin-top:5px;font:600 10.5px/1 var(--sans);letter-spacing:.07em;text-transform:uppercase;color:var(--accent)}
+.pen .money{text-align:right;font-variant-numeric:tabular-nums;flex:none}
+.pen .money .paid{font-size:12px;color:var(--muted)}
+.pen .money .est{font-size:15px;font-weight:700;margin-top:2px}
+.pen .money .badge{margin-top:4px}
+.matdot{width:9px;height:9px;border-radius:2px;flex:none;display:inline-block;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.34)}
+
+/* grid */
+#cards.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  overflow:hidden;cursor:pointer;transition:transform .08s,border-color .08s}
+.card:hover{transform:translateY(-2px);border-color:var(--accent2)}
+.card .ph{aspect-ratio:4/3;background:var(--panel2);display:flex;align-items:center;
+  justify-content:center;color:var(--muted);overflow:hidden;position:relative}
+.card .ph img{width:100%;height:100%;object-fit:cover}
+.card .ph .swatch{width:100%;height:100%}
+.card .bd{padding:10px 12px}
+.card .t{font-family:var(--serif);font-weight:600;line-height:1.25}
+.card .s{color:var(--muted);font-size:13px;margin-top:2px}
+.card .row{display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:6px}
+.badge{font-size:11px;padding:3px 8px;border-radius:20px;font-weight:600;white-space:nowrap}
+.b-Keep{background:rgba(75,181,107,.18);color:var(--good)}
+.b-Sold{background:rgba(154,163,178,.18);color:var(--muted)}
+.b-Gift{background:rgba(155,108,214,.18);color:var(--gift)}
+.b-WillSell{background:rgba(226,96,74,.18);color:var(--bad)}
+.b-Listed{background:rgba(224,169,59,.18);color:var(--warn)}
+.b-Undecided{background:rgba(212,175,55,.16);color:var(--accent)}
+.b-Dispose{background:rgba(226,96,74,.18);color:var(--bad)}
+.pricetag{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pricetag b{color:var(--txt)}
+
+/* list */
+#cards.list{display:flex;flex-direction:column;gap:1px;background:var(--line);border-radius:var(--radius);overflow:hidden}
+.lrow{display:grid;grid-template-columns:46px 1.6fr 1fr .8fr .7fr 90px;gap:12px;align-items:center;
+  background:var(--panel);padding:9px 14px;cursor:pointer}
+.lrow:hover{background:var(--panel2)}
+.lrow .li{width:46px;height:46px;border-radius:8px;object-fit:cover;background:var(--panel2)}
+.lrow .swatch{width:46px;height:46px;border-radius:8px}
+.lrow .muted{color:var(--muted);font-size:13px}
+.lrow .money{font-variant-numeric:tabular-nums}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:50;display:flex;
+  align-items:flex-start;justify-content:center;padding:34px 16px;overflow:auto}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  width:100%;max-width:760px;box-shadow:var(--shadow);position:relative}
+.sheet.wide{max-width:880px}
+.sheet h2{margin:0;font-size:19px;text-wrap:balance}
+.sheet .head h2{font-family:var(--serif)}
+h1,h2,h3,h4{text-wrap:balance}
+.sheet .head{display:flex;align-items:center;gap:12px;padding:18px 22px;border-bottom:1px solid var(--line)}
+.sheet .head .x{margin-left:auto;background:transparent;border:none;color:var(--muted);font-size:22px}
+.sheet .body{padding:20px 22px}
+.sheet .foot{display:flex;gap:10px;justify-content:flex-end;padding:16px 22px;border-top:1px solid var(--line)}
+
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field.full{grid-column:1/-1}
+.field label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.field input,.field select,.field textarea{background:var(--panel2);border:1px solid var(--border-ctl);
+  color:var(--txt);padding:9px 11px;border-radius:9px;width:100%}
+.field textarea{min-height:70px;resize:vertical}
+.aihint{font-size:12px;color:var(--accent);margin-top:3px}
+
+/* gallery */
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:6px}
+.gphoto{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--panel2)}
+.gphoto img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+.gphoto .del{position:absolute;top:5px;right:5px;background:rgba(0,0,0,.6);border:none;
+  color:#fff;border-radius:6px;padding:2px 7px;font-size:12px}
+.addphoto{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  border:1.5px dashed var(--line);border-radius:10px;aspect-ratio:1;color:var(--muted);background:transparent}
+
+/* qr */
+#qrbox{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+#qrcanvas{background:#fff;padding:12px;border-radius:12px}
+#qrcanvas img{display:block}
+.kv{display:flex;flex-wrap:wrap;gap:8px 20px;color:var(--muted);font-size:13px;justify-content:center}
+
+/* dashboard */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+.stat .n{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.stat .l{color:var(--muted);font-size:13px;margin-top:3px}
+.stat .sub{font-size:12px;margin-top:6px}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.dpanels{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.dpanel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+.dpanel h3{margin:0 0 12px;font-size:15px}
+.bar{display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:13px}
+.bar .lab{width:130px;flex:none;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .track{flex:1;background:var(--panel2);border-radius:6px;height:10px;overflow:hidden}
+.bar .fill{height:100%;background:var(--accent)}
+.bar .val{width:42px;text-align:right;color:var(--txt);font-variant-numeric:tabular-nums}
+
+#menuBtn{display:none;background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+  padding:8px 13px;border-radius:9px;font-size:16px;line-height:1}
+#backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:39}
+#hdr.menuopen{z-index:45}   /* see toggleMoreMenu(): beats #backdrop so the menu is clickable */
+
+/* ── overflow (⋯) menu ─────────────────────────────────────────────────── */
+#moreMenu{position:absolute;top:calc(100% + 8px);right:0;background:var(--panel);
+  border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);z-index:41;
+  min-width:200px;overflow:hidden;padding:6px}
+#moreMenu button{display:block;width:100%;text-align:left;background:none;border:none;
+  color:var(--txt);padding:9px 11px;border-radius:7px;font-size:13.5px}
+#moreMenu button:hover{background:var(--panel2)}
+
+/* ── Today ─────────────────────────────────────────────────────────────── */
+#todayView{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:22px;align-items:start}
+.eyebrow{font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.headline{font-family:var(--serif);font-size:30px;font-weight:700;letter-spacing:-.02em;
+  margin-top:8px;line-height:1.15}
+.subline{font-size:14px;color:var(--muted);margin-top:7px;max-width:64ch;line-height:1.6}
+.inked-list{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.inked-row{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:10px 14px}
+.inked-row .nm{font-family:var(--serif);font-weight:700;font-size:13.5px}
+.inked-row .ink{color:var(--muted);font-size:12.5px;margin-top:2px}
+.inked-row .days{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
+.sec-head{display:flex;align-items:baseline;gap:10px;margin-bottom:11px}
+.sec-head .line{height:1px;background:var(--line);flex:1}
+.pairing{display:grid;grid-template-columns:132px 30px minmax(0,1fr) auto;gap:16px;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:9px}
+.pairing .sil{width:132px;height:auto}
+.pairing .swatch{width:30px;height:30px;border-radius:6px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28),inset 0 -8px 12px rgba(0,0,0,.32)}
+.pairing .txt b{font-family:var(--serif);font-size:14.5px;font-weight:700}
+.pairing .why{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.5}
+.pairing .go{font-size:12.5px;font-weight:700;color:var(--on-accent);background:var(--accent);
+  border:none;border-radius:6px;padding:9px 14px;white-space:nowrap}
+.steerclear{display:flex;gap:13px;align-items:flex-start;background:rgba(224,92,74,.09);
+  border:1px solid rgba(224,92,74,.34);border-radius:12px;padding:14px 16px;margin-top:4px}
+.steerclear b{color:var(--bad);font-size:13px}
+.steerclear .why{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.5}
+.empty-today{background:var(--panel);border:1px dashed var(--line);border-radius:12px;padding:40px 24px;text-align:center}
+.empty-today .headline{font-size:22px}
+.rail-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:17px 18px}
+.rail-panel + .rail-panel{margin-top:14px}
+.rail-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:13px;color:var(--muted)}
+.rail-row b{font-family:var(--serif);font-size:17px;font-weight:700;color:var(--txt);font-variant-numeric:tabular-nums}
+.rail-hr{height:1px;background:var(--line);margin:11px 0}
+.rail-todo{display:flex;align-items:center;gap:11px;font-size:13px;line-height:1.4}
+.rail-todo .n{font-family:var(--serif);font-size:19px;font-weight:700;width:30px;flex:none;
+  font-variant-numeric:tabular-nums;color:var(--muted)}
+.progress-track{height:5px;border-radius:3px;background:var(--sunken);overflow:hidden;margin-top:10px}
+.progress-fill{height:100%;background:var(--accent);border-radius:3px}
+.progress-lab{font-size:11.5px;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums}
+
+/* ── Collection: Kind facet + Table layout ────────────────────────────── */
+#cards.table{display:block}
+.coltbl{width:100%;border-collapse:collapse;font-size:13px}
+.coltbl th,.coltbl td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.coltbl th{position:sticky;top:0;background:var(--bg);color:var(--muted);font-size:11px;
+  text-transform:uppercase;letter-spacing:.4px;cursor:pointer;user-select:none}
+.coltbl th:hover{color:var(--txt)}
+.coltbl tbody tr{cursor:pointer}
+.coltbl tbody tr:hover{background:var(--panel2)}
+.coltbl td.num{text-align:right;font-variant-numeric:tabular-nums}
+.kindpill{position:absolute;top:8px;left:8px;font:600 9.5px/1 var(--sans);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted);background:var(--panel);border:1px solid var(--line);
+  border-radius:999px;padding:4px 7px}
+
+/* ── Purchase records ──────────────────────────────────────────────────── */
+.recwrap{display:flex;flex-direction:column;gap:16px}
+.rec-head{display:flex;align-items:flex-end;gap:20px}
+.rec-head h1{font-family:var(--serif);font-size:27px;margin:8px 0 0;letter-spacing:-.02em}
+.rec-head .crumb{font-size:12px;color:var(--muted)}
+.rec-head .sub{font-size:14px;color:var(--muted);margin-top:6px;max-width:66ch;line-height:1.6}
+.rec-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+.rec-pin{border-color:rgba(212,175,55,.4);background:rgba(212,175,55,.05)}
+.rectbl{width:100%;border-collapse:collapse;font-size:13px}
+.rectbl th,.rectbl td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left}
+.rectbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);
+  cursor:pointer;user-select:none}
+.rectbl td.num,.rectbl th.num{text-align:right;font-variant-numeric:tabular-nums}
+.rec-foot{display:flex;align-items:center;gap:18px;padding-top:14px;border-top:1px solid var(--line);
+  font-size:12.5px;color:var(--muted)}
+
+/* ── pen detail: reading view ──────────────────────────────────────────── */
+.pd-wrap{display:grid;grid-template-columns:minmax(0,1.32fr) minmax(0,1fr);gap:20px}
+.pd-panel{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:18px}
+.pd-nib{display:grid;grid-template-columns:96px minmax(0,1fr);gap:22px;align-items:center}
+.pd-nib svg.nib{width:96px;height:auto}
+.pd-nib h3{font-family:var(--serif);font-size:22px;font-weight:700;margin:7px 0 0}
+.pd-nib p{font-size:13.5px;color:var(--muted);margin-top:7px;line-height:1.6;max-width:56ch}
+.pd-chips{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap}
+.pd-chip{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+  background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 8px;color:var(--muted)}
+.pd-chip.good{background:rgba(63,178,127,.14);border-color:rgba(63,178,127,.3);color:var(--good)}
+.pd-notes{border-left:2px solid var(--accent)}
+.pd-notes .body{font-size:14px;line-height:1.72;margin-top:11px;max-width:68ch;white-space:pre-wrap}
+.pd-kv{display:grid;grid-template-columns:116px minmax(0,1fr);gap:10px 14px;font-size:13.5px}
+.pd-kv dt{color:var(--muted);margin:0}
+.pd-kv dd{margin:0;font-variant-numeric:tabular-nums}
+.pd-askrow{margin-top:15px;padding-top:13px;border-top:1px solid var(--line);
+  display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted)}
+.pd-journal .jrow{padding:10px 0;border-top:1px solid var(--line)}
+.pd-journal .jrow:first-of-type{border-top:none;padding-top:11px}
+.pd-journal .jdate{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:7px;margin-bottom:4px}
+.pd-journal .jtext{font-size:13.5px;line-height:1.6;white-space:pre-wrap}
+.pd-journal .jadd{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.pd-journal .jadd textarea{background:var(--panel);border:1px solid var(--border-ctl);color:var(--txt);
+  border-radius:8px;padding:9px 10px;font:inherit;resize:vertical}
+.pd-journal .jadd button{align-self:flex-end}
+
+/* ── capture flow ──────────────────────────────────────────────────────── */
+.soldtag{display:inline-block;margin-left:6px;background:rgba(212,175,55,.16);color:var(--accent);
+  border-radius:999px;padding:2px 7px;font:600 10px/1.5 var(--sans);letter-spacing:.04em;
+  text-transform:uppercase;vertical-align:1px}
+.cap-text{width:100%;margin-top:10px;background:var(--panel2);border:1px solid var(--border-ctl);
+  color:var(--txt);border-radius:9px;padding:11px 12px;font:13px/1.55 var(--sans);resize:vertical}
+.cap-input{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--accent);
+  border-radius:12px;padding:12px 14px}
+.cap-input input{flex:1;background:transparent;border:none;color:var(--txt);font-size:14px;padding:0}
+.cap-input input:focus{outline:none}
+.cap-reads{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap}
+.cap-reads .lbl2{font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.cap-reads span.pill{font-size:11.5px;font-weight:600;background:var(--panel2);border:1px solid var(--line);
+  border-radius:999px;padding:4px 10px;color:var(--txt)}
+.cap-multi{background:rgba(224,138,60,.08);border:1px solid rgba(224,138,60,.42);border-radius:12px;padding:15px 17px;margin-top:14px}
+.cap-multi h4{color:var(--warn);font-size:13.5px;margin:0}
+.cap-lots{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px;margin-top:13px}
+.cap-lot{border:1px solid var(--line);background:var(--sunken);border-radius:9px;padding:10px 11px;cursor:pointer}
+.cap-lot.on{border-color:var(--accent);background:rgba(212,175,55,.09)}
+.cap-draft{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-top:14px;
+  display:grid;grid-template-columns:150px minmax(0,1fr);gap:22px}
+.cap-fgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px 15px}
+.cap-field{display:flex;flex-direction:column;gap:6px}
+.cap-field.full{grid-column:1/-1}
+.cap-fname{font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.cap-fval{background:var(--panel2);border:1px solid var(--border-ctl);border-radius:7px;padding:9px 11px;
+  font-size:13.5px;color:var(--txt);width:100%}
+.cap-fval.needs{border-color:var(--warn)}
+.cap-src{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.cap-src.needs{color:var(--warn)}
+.cap-src i{width:5px;height:5px;border-radius:50%;background:var(--muted);display:block;flex:none}
+.cap-src.post i{background:var(--accent)}
+.cap-confirm{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--good)}
+
+/* ── command palette ──────────────────────────────────────────────────── */
+#paletteRoot:empty{display:none}
+.pal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:70;display:flex;
+  align-items:flex-start;justify-content:center;padding:12vh 16px}
+.pal-box{width:100%;max-width:560px;background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.pal-input{width:100%;background:var(--panel2);border:none;border-bottom:1px solid var(--line);
+  color:var(--txt);padding:16px 18px;font-size:16px}
+.pal-input:focus{outline:none}
+.pal-list{max-height:50vh;overflow:auto;padding:6px}
+.pal-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;font-size:13.5px}
+.pal-item .k{margin-left:auto;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.pal-item.sel{background:var(--panel2)}
+.pal-empty{padding:22px;text-align:center;color:var(--muted);font-size:13px}
+
+/* ── mobile bottom nav ────────────────────────────────────────────────── */
+#bottomNav{display:none}
+
+#lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:80;display:flex;
+  align-items:center;justify-content:center;padding:30px}
+#lightbox img{max-width:100%;max-height:100%;border-radius:8px}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--panel2);
+  border:1px solid var(--line);padding:12px 20px;border-radius:10px;z-index:90;box-shadow:var(--shadow);
+  font-weight:600;animation:toastIn .18s ease-out}
+#toast.ok{border-color:var(--good);color:var(--good)}
+#toast.ok::before{content:"✓ "}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}
+  to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.empty{color:var(--muted);text-align:center;padding:60px 20px}
+
+/* AI busy spinner */
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line);
+  border-top-color:var(--accent);border-radius:50%;animation:rot .8s linear infinite;
+  vertical-align:-2px;margin-right:8px}
+@keyframes rot{to{transform:rotate(360deg)}}
+/* swab wall */
+#cards.wall{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.wtile{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:pointer;
+  background:var(--panel2);transition:transform .08s}
+.wtile:hover{transform:scale(1.03);z-index:2}
+.wtile img,.wtile .wcolor{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.wlabel{position:absolute;left:0;right:0;bottom:0;padding:14px 8px 6px;font-size:11px;line-height:1.3;
+  color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.75));text-shadow:0 1px 2px rgba(0,0,0,.8)}
+
+/* photo tag badge */
+.tagb{position:absolute;bottom:5px;left:5px;background:rgba(0,0,0,.65);border:none;color:#fff;
+  border-radius:6px;padding:2px 7px;font-size:11px;cursor:pointer}
+.tagb:hover{background:var(--accent2);color:var(--on-accent)}
+
+/* photo editor (crop / rotate) */
+#pe-canvas{max-width:100%;max-height:60vh;touch-action:none;border-radius:10px;
+  background:#000;cursor:crosshair;display:block;margin:0 auto}
+.pe-tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.topbtns{position:absolute;top:5px;right:5px;display:flex;gap:3px}
+.topbtns button{background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:6px;
+  min-width:22px;height:22px;font-size:12px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;padding:0 4px}
+.topbtns button:hover{background:var(--accent2);color:var(--on-accent)}
+.topbtns button.delx:hover{background:rgba(226,96,74,.9)}
+
+/* photo default + reorder controls */
+.defb{position:absolute;top:5px;left:5px;background:rgba(0,0,0,.6);border:none;
+  border-radius:6px;padding:2px 7px;font-size:11px;color:#fde68a}
+button.defb{cursor:pointer}
+button.defb:hover{background:var(--accent2);color:var(--on-accent)}
+.movebtns{position:absolute;bottom:5px;right:5px;display:flex;gap:3px}
+.movebtns button{background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:6px;
+  width:22px;height:22px;font-size:14px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center}
+.movebtns button:disabled{opacity:.25;cursor:default}
+.movebtns button:not(:disabled):hover{background:var(--accent2);color:var(--on-accent)}
+
+/* import wizard */
+.sech{margin:0 0 6px;color:var(--muted);font-size:12px;letter-spacing:.5px}
+.iw-ta{width:100%;min-height:150px;background:var(--panel2);border:1px solid var(--border-ctl);
+  color:var(--txt);border-radius:9px;padding:10px;font:12px/1.5 Consolas,monospace;resize:vertical}
+.iw-wrap{overflow:auto;max-height:46vh;border:1px solid var(--line);border-radius:9px;margin-top:10px}
+.iw-tbl{border-collapse:collapse;width:100%;font-size:13px}
+.iw-tbl th,.iw-tbl td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;
+  white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.iw-tbl th{position:sticky;top:0;background:var(--panel);color:var(--muted);font-size:11px;
+  text-transform:uppercase;letter-spacing:.4px}
+.iw-tbl select{background:var(--panel2);border:1px solid var(--border-ctl);color:var(--txt);
+  padding:5px 8px;border-radius:7px;max-width:180px}
+
+/* ── phone / small screens ─────────────────────────────────────────────── */
+@media(max-width:820px){
+  #hdr{height:52px;flex-wrap:nowrap;gap:8px;padding:0 12px;overflow:hidden}
+  #brand{font-size:15.5px}
+  #brand span{display:none}
+  #tabs{display:none}
+  #search{display:none}
+  #searchIconBtn{display:flex;margin-left:auto}
+  /* filter rail toggle: only meaningful (and shown) in Collection — render()
+     applies .hidden the rest of the time so the 52px row stays uncluttered
+     on Today/Records while the slide-over filter rail stays reachable. */
+  #menuBtn{display:inline-block}
+  #moreBtn{padding:8px 10px}
+  #addBtn{display:none}
+  #side{position:fixed;top:0;left:0;bottom:0;z-index:40;width:280px;max-width:85vw;
+    height:100vh;background:var(--bg);border-right:1px solid var(--line);
+    transform:translateX(-105%);transition:transform .2s ease;padding-top:18px}
+  #side.open{transform:none}
+  #main{padding:12px;padding-bottom:calc(70px + env(safe-area-inset-bottom))}
+  #cards.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .lrow{grid-template-columns:46px 1fr 92px}
+  .lrow>div:nth-child(3),.lrow>div:nth-child(4),.lrow>div:nth-child(5){display:none}
+  .overlay{padding:0}
+  .sheet,.sheet.wide{max-width:100%;min-height:100vh;border-radius:0}
+  .fields{grid-template-columns:1fr}
+  .dpanels{grid-template-columns:1fr}
+  .btn,.chip{min-height:40px}
+  .gallery{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+  #cards.gallery{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  #cards.compact{grid-template-columns:1fr}
+  #todayView{grid-template-columns:1fr}
+  .pairing{grid-template-columns:70px 22px minmax(0,1fr);row-gap:8px}
+  .pairing .sil{width:70px}
+  .pairing .go{grid-column:1/-1;text-align:center}
+  .pd-wrap{grid-template-columns:1fr}
+  .cap-draft{grid-template-columns:1fr}
+  .cap-fgrid{grid-template-columns:1fr 1fr}
+  #bottomNav{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;
+    z-index:35;border-top:1px solid var(--line);background:rgba(15,19,25,.96);backdrop-filter:blur(8px);
+    padding-bottom:env(safe-area-inset-bottom)}
+  #bottomNav button{background:none;border:none;color:var(--muted);display:grid;place-items:center;
+    align-content:center;gap:4px;min-height:52px;padding:6px 4px}
+  #bottomNav button svg{width:21px;height:21px}
+  #bottomNav button span{font-size:10.5px;font-weight:600}
+  #bottomNav button.on{color:var(--accent)}
+  #moreMenu{position:fixed;left:12px;right:12px;top:auto;bottom:calc(64px + env(safe-area-inset-bottom));
+    width:auto}
+}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="hdr">
+  <button id="menuBtn" onclick="toggleSide()" title="Filters" aria-label="Show filters">☰</button>
+  <div id="brand">✒ Pen &amp; Ink <span>Tracker</span></div>
+  <div id="tabs" role="tablist" aria-label="Sections">
+    <button class="tab active" role="tab" aria-selected="true" data-view="today">Today</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="collection">Collection</button>
+  </div>
+  <input id="search" placeholder="Search or jump to… (⌘K)">
+  <button id="searchIconBtn" onclick="openPalette()" title="Search" aria-label="Search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.4-3.4" stroke-linecap="round"/></svg>
+  </button>
+  <div style="position:relative">
+    <button id="moreBtn" class="btn sec" onclick="toggleMoreMenu()" title="More" aria-label="More options">⋯</button>
+    <div id="moreMenu" class="hidden">
+      <button onclick="closeMoreMenu();openRecords()">🧾 Purchase records</button>
+      <button onclick="closeMoreMenu();openData()">⇄ Import / Export</button>
+      <button onclick="closeMoreMenu();startPhotoRun()">📷 Photo run</button>
+      <button onclick="closeMoreMenu();openAppQR()">📱 Open on your phone</button>
+      <button onclick="closeMoreMenu();openSettings()">⚙ Settings</button>
+    </div>
+  </div>
+  <button class="btn" id="addBtn">+ Add</button>
+</div>
+<div id="backdrop" class="hidden" onclick="toggleSide(false);closeMoreMenu()"></div>
+
+<div id="layout">
+  <aside id="side"></aside>
+  <main id="main">
+    <div id="todayView" class="hidden"></div>
+    <div id="collectionView" class="hidden">
+      <div id="meta">
+        <span id="count"></span>
+        <span class="spacer"></span>
+        <select id="sort" class="btn sec"></select>
+        <div class="segs" id="layoutSeg" role="group" aria-label="Card layout">
+          <button data-layout="gallery" class="on" aria-pressed="true">▦ Gallery</button>
+          <button data-layout="compact" aria-pressed="false">☰ Compact</button>
+          <button data-layout="table" aria-pressed="false">▤ Table</button>
+          <button data-layout="wall" id="wallBtn" class="hidden" aria-pressed="false">🎨 Wall</button>
+        </div>
+      </div>
+      <div id="cards" class="grid"></div>
+    </div>
+    <div id="recordsView" class="hidden"></div>
+  </main>
+</div>
+
+<!-- mobile-only bottom nav: Today / Collection / Add / More -->
+<nav id="bottomNav" aria-label="Primary">
+  <button data-nav="today" class="on" aria-current="page">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3.5 20.5 9 9 20.5l-5.5.5.5-5.5z"/><path d="m13 5.5 5.5 5.5"/></svg>
+    <span>Today</span>
+  </button>
+  <button data-nav="collection">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="4.5" width="7" height="7" rx="1.4"/><rect x="13.5" y="4.5" width="7" height="7" rx="1.4"/><rect x="3.5" y="14" width="7" height="5.5" rx="1.4"/><rect x="13.5" y="14" width="7" height="5.5" rx="1.4"/></svg>
+    <span>Collection</span>
+  </button>
+  <button data-nav="add">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    <span>Add</span>
+  </button>
+  <button data-nav="more">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>
+    <span>More</span>
+  </button>
+</nav>
+
+<div id="modalRoot"></div>
+<div id="lightbox" class="hidden"></div>
+<div id="toast" class="hidden"></div>
+<div id="paletteRoot"></div>
+
+<script src="qrcode.min.js"></script>
+<script>
+/* ============================ state ============================ */
+const STATUS = ["Keep","Undecided","Listed","Will Sell","Sold","Gift","Incoming"];
+const SHEENS = ["None","Gold","Blue","Silver","Red","Green","Pink"];
+const COLORS = ["Red","Orange","Yellow","Green","Brown","Blue","Purple","Grey","Black"];
+const INKSTATUS = ["Keep","Dispose"];
+const INKTYPE = ["Bottle","Sample"];
+const PAPERTYPES = ["Notebook","Pad","Loose Sheets","Journal","Other"];
+const RULINGS = ["","Blank","Lined","Grid","Dot"];
+const SEVERITY = ["","None","Slight","Moderate","Severe"];
+const TAG_LABEL = {photo:"📷 Photo", swab:"🎨 Swab", writing:"✍ Writing"};
+const TAG_ORDER = ["photo","swab","writing"];
+const COLOR_HEX = {Red:"#c0392b",Orange:"#e67e22",Yellow:"#e6c520",Green:"#27ae60",
+  Brown:"#8a5a2b",Blue:"#2d6cdf",Purple:"#8e44ad",Grey:"#7d8590",Black:"#1c1c1c"};
+
+const S = { pens:[], inks:[], papers:[], photos:{}, view:"today", kind:"all",
+  layout: localStorage.getItem("pi_layout") || "gallery",
+  sort:   localStorage.getItem("pi_sort")   || "",
+  search:"", filters:{}, filterOpen:{}, token:"" };
+
+// All mutating calls carry the per-run token so the app works from the phone too.
+function apiHeaders(){ return {"Content-Type":"application/json","X-Upload-Token":S.token}; }
+
+const $ = s=>document.querySelector(s);
+const esc = s => (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const uid = ()=> (Date.now().toString(36)+Math.random().toString(36).slice(2,7)).replace(/[^a-z0-9]/g,"").slice(0,20);
+const money = v => v==null||v===""?"—":"$"+Number(v).toLocaleString(undefined,{maximumFractionDigits:0});
+const photosFor = (type,id)=> S.photos[type+":"+id] || [];
+// photo entries are {url, tag} (server normalizes old string entries)
+const photoUrl = e => typeof e==="string" ? e : e.url;
+const photoTag = e => typeof e==="string" ? "photo" : (e.tag||"photo");
+function firstPhoto(type,id,prefTag){
+  const ps=photosFor(type,id); if(!ps.length) return null;
+  if(prefTag){ const m=ps.find(p=>photoTag(p)===prefTag); if(m) return photoUrl(m); }
+  return photoUrl(ps[0]);
+}
+const hasInk = p => !!(p.inked_with && String(p.inked_with).trim());
+function toast(m,ok){const t=$("#toast");t.textContent=m;t.classList.toggle("ok",!!ok);t.classList.remove("hidden");
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.add("hidden"),ok?2600:2200);}
+
+/* ============================ load/save ============================ */
+async function load(){
+  try{ const i = await (await fetch("/api/qr-info")).json(); S.token = i.token; }catch(e){}
+  const d = await (await fetch("/api/data")).json();
+  S.pens=d.pens||[]; S.inks=d.inks||[]; S.papers=d.papers||[]; S.photos=d.photos||{};
+  render();
+}
+async function refreshPhotos(){
+  const d = await (await fetch("/api/data")).json();
+  S.photos = d.photos||{};
+}
+// Header ⟳ — reload everything from disk without losing the current view/filters
+window.refreshData=async()=>{
+  const b=$("#refreshBtn");if(b)b.disabled=true;
+  try{
+    const d=await (await fetch("/api/data")).json();
+    S.pens=d.pens||[];S.inks=d.inks||[];S.papers=d.papers||[];S.photos=d.photos||{};
+    CATALOG=null;
+    render();
+    toast("Refreshed");
+  }catch(e){toast("Refresh failed");}
+  if(b)b.disabled=false;
+};
+async function savePens(){ await fetch("/api/save-pens",{method:"POST",headers:apiHeaders(),body:JSON.stringify(S.pens)});}
+async function saveInks(){ await fetch("/api/save-inks",{method:"POST",headers:apiHeaders(),body:JSON.stringify(S.inks)});}
+async function savePapers(){ await fetch("/api/save-papers",{method:"POST",headers:apiHeaders(),body:JSON.stringify(S.papers)});}
+
+/* entity registry — one place that knows the three collections */
+const ENT = {
+  pen:   { list:()=>S.pens,   save:savePens,   def:()=>PEN_DEF,
+           label:r=>`${r.make||""} ${r.model||""}`.trim(),
+           seeds:[["make","Make","e.g. Pelikan"],["model","Model","e.g. M800"]] },
+  ink:   { list:()=>S.inks,   save:saveInks,   def:()=>INK_DEF,
+           label:r=>`${r.brand||""} ${r.name||""}`.trim(),
+           seeds:[["brand","Brand","e.g. Diamine"],["name","Name","e.g. Oxblood"]] },
+  paper: { list:()=>S.papers, save:savePapers, def:()=>PAPER_DEF,
+           label:r=>`${r.brand||""} ${r.name||""}`.trim(),
+           seeds:[["brand","Brand","e.g. Midori"],["name","Product","e.g. MD Notebook A5"]] },
+};
+const viewKind = () => (S.view==="collection" && S.kind!=="all") ? S.kind : "pen";
+
+/* ============================ filtering ============================ */
+function statusClass(s){return "b-"+String(s||"").replace(/\s+/g,"");}
+// Collection is one surface now; S.kind ("all"/"pen"/"ink"/"paper") picks which
+// slice the Kind facet shows. "all" merges the three lists into {kind,rec} tuples.
+function activeList(){
+  if(S.kind==="ink") return filterInks();
+  if(S.kind==="paper") return filterPapers();
+  if(S.kind==="pen") return filterPens();
+  const q=S.search.toLowerCase();
+  const matches=(o,fields)=>!q||fields.some(f=>String(o[f]||"").toLowerCase().includes(q));
+  let out=[];
+  S.pens.forEach(p=>{if(matches(p,["make","model","material_color","nib_grind","nib_material","status"])
+    && passFacets(p,{status:x=>x.status,make:x=>x.make}) && passSold(p))out.push({kind:"pen",rec:p});});
+  S.inks.forEach(i=>{if(matches(i,["brand","name","color_match","status"])
+    && passFacets(i,{status:x=>x.status,make:x=>x.brand}))out.push({kind:"ink",rec:i});});
+  S.papers.forEach(p=>{if(matches(p,["brand","name","type","status"])
+    && passFacets(p,{status:x=>x.status,make:x=>x.brand}))out.push({kind:"paper",rec:p});});
+  const num=v=>v==null?-Infinity:Number(v);
+  const lab=o=>ENT[o.kind].label(o.rec);
+  if(S.sort==="paid_desc") out.sort((a,b)=>num(b.rec.paid ?? b.rec.price)-num(a.rec.paid ?? a.rec.price));
+  else if(S.sort==="paid_asc") out.sort((a,b)=>num(a.rec.paid ?? a.rec.price)-num(b.rec.paid ?? b.rec.price));
+  else if(S.sort==="date_desc") out.sort((a,b)=>String(b.rec.added_at||"").localeCompare(String(a.rec.added_at||"")));
+  else if(S.sort==="date_asc") out.sort((a,b)=>String(a.rec.added_at||"").localeCompare(String(b.rec.added_at||"")));
+  else if(S.sort==="name") out.sort((a,b)=>lab(a).localeCompare(lab(b)));
+  return out;
+}
+function matchSearch(obj, fields){
+  if(!S.search) return true;
+  const q=S.search.toLowerCase();
+  return fields.some(f=>String(obj[f]||"").toLowerCase().includes(q));
+}
+// S.filters[key] is a Set of accepted string values for that facet; a record
+// matches a facet group when its (stringified) value is a member of the Set.
+// Facets are AND'd together; values within one facet's Set are OR'd.
+function passFacets(obj, getters){
+  for(const k in S.filters){
+    const set=S.filters[k]; if(!set||!set.size) continue;
+    const getter=getters[k]; if(!getter) continue;
+    if(!set.has(String(getter(obj)))) return false;
+  }
+  return true;
+}
+// Sold pens are hidden by default (they clutter browsing once a pen is gone) —
+// click the "Sold" chip in the Status facet to bring them back into view.
+function passSold(p){
+  return p.status!=="Sold" || (S.filters.status && S.filters.status.has("Sold"));
+}
+function filterPens(){
+  let r=S.pens.filter(p=>matchSearch(p,["make","model","material_color","nib_grind","nib_material","nibmeister","source","notes","status"]));
+  r=r.filter(p=>passFacets(p,{
+    make:x=>x.make, status:x=>x.status, nib_material:x=>x.nib_material,
+    fits_hand:x=>x.fits_hand, inked:x=>hasInk(x)?"yes":"no",
+  }));
+  r=r.filter(passSold);
+  r=sortList(r);
+  return r;
+}
+function filterPapers(){
+  let r=S.papers.filter(p=>matchSearch(p,["brand","name","type","size","ruling","notes","status"]));
+  r=r.filter(p=>passFacets(p,{
+    type:x=>x.type, ruling:x=>x.ruling, brand:x=>x.brand, rating:x=>x.rating, status:x=>x.status,
+  }));
+  return sortList(r);
+}
+function filterInks(){
+  let r=S.inks.filter(i=>matchSearch(i,["brand","name","color_match","sheen","notes","status","type"]));
+  r=r.filter(i=>passFacets(i,{
+    color_match:x=>x.color_match, sheen:x=>x.sheen, shimmer:x=>String(!!x.shimmer),
+    type:x=>x.type, status:x=>x.status, alkaline:x=>x.alkaline||"",
+  }));
+  r=sortList(r);
+  return r;
+}
+function sortList(r){
+  const s=S.sort;
+  const num=v=>v==null?-Infinity:Number(v);
+  if(s==="paid_desc") r.sort((a,b)=>num(b.paid)-num(a.paid));
+  else if(s==="paid_asc") r.sort((a,b)=>num(a.paid)-num(b.paid));
+  else if(s==="date_desc") r.sort((a,b)=>String(b.date_acquired||"").localeCompare(String(a.date_acquired||"")));
+  else if(s==="date_asc") r.sort((a,b)=>String(a.date_acquired||"").localeCompare(String(b.date_acquired||"")));
+  else if(s==="name"){ const lab=ENT[viewKind()].label; r.sort((a,b)=>lab(a).localeCompare(lab(b))); }
+  return r;
+}
+
+/* ============================ render ============================ */
+function render(){
+  document.querySelectorAll(".tab").forEach(t=>{
+    const on=t.dataset.view===S.view;
+    t.classList.toggle("active",on);
+    t.setAttribute("aria-selected",on?"true":"false");
+  });
+  document.querySelectorAll("#bottomNav button[data-nav]").forEach(b=>{
+    b.classList.toggle("on", b.dataset.nav===S.view);
+  });
+  $("#todayView").classList.toggle("hidden", S.view!=="today");
+  $("#collectionView").classList.toggle("hidden", S.view!=="collection");
+  $("#recordsView").classList.toggle("hidden", S.view!=="records");
+  $("#side").classList.toggle("hidden", S.view!=="collection");
+  // mobile-only: the ☰ filter-rail toggle only makes sense in Collection
+  $("#menuBtn").classList.toggle("hidden", S.view!=="collection");
+  if(S.view==="today"){ renderToday(); return; }
+  if(S.view==="records"){ renderRecords(); return; }
+  $("#wallBtn").classList.toggle("hidden", S.kind!=="ink");
+  renderSide(); renderSort(); renderCards(); syncLayoutButtons();
+}
+// Collection now shares one layout toggle (Gallery/Compact/Table, +Wall for inks)
+// across all three record kinds — S.layout is one shared, localStorage-backed value.
+function effLayout(){
+  if(S.kind==="ink" && S.layout==="wall") return "wall";
+  return ["gallery","compact","table"].includes(S.layout) ? S.layout : "gallery";
+}
+function syncLayoutButtons(){
+  const eff=effLayout();
+  document.querySelectorAll("#layoutSeg button[data-layout]").forEach(b=>{
+    const on=b.dataset.layout===eff;
+    b.classList.toggle("on",on);
+    b.setAttribute("aria-pressed",on?"true":"false");
+  });
+}
+window.setLayout=(v)=>{
+  S.layout=v; localStorage.setItem("pi_layout",S.layout);
+  syncLayoutButtons(); renderCards();
+};
+function renderSort(){
+  const sel=$("#sort");
+  const opts = (S.kind==="ink" || S.kind==="paper")
+    ? [["","Sort: Newest added"],["name","Name A–Z"]]
+    : [["","Sort: Newest added"],["name","Name A–Z"],["paid_desc","Paid ↓"],["paid_asc","Paid ↑"],["date_desc","Acquired ↓"],["date_asc","Acquired ↑"]];
+  sel.innerHTML=opts.map(o=>`<option value="${o[0]}" ${S.sort===o[0]?"selected":""}>${o[1]}</option>`).join("");
+}
+function uniq(arr){return [...new Set(arr.filter(Boolean))].sort();}
+const FACET_CHIP_LIMIT=6;
+function kindFacetHTML(){
+  const n={all:S.pens.length+S.inks.length+S.papers.length, pen:S.pens.length, ink:S.inks.length, paper:S.papers.length};
+  const opts=[["all","All"],["pen","Pens"],["ink","Inks"]];
+  if(S.papers.length>0) opts.push(["paper","Papers"]);
+  return `<div class="fgroup"><h4>Kind</h4>`+opts.map(([k,lab])=>
+    `<button class="chip ${S.kind===k?"on":""}" aria-pressed="${S.kind===k?"true":"false"}" onclick="setKind('${k}')">${lab} <small>${n[k]}</small></button>`
+  ).join("")+`</div>`;
+}
+window.setKind=(k)=>{ S.kind=k; S.filters={}; S.filterOpen={}; S.sort=""; render(); };
+function renderSide(){
+  const f=S.filters; const side=$("#side"); let h=kindFacetHTML();
+  const grp=(title,key,items,fmt)=>{
+    const open = !!S.filterOpen[key];
+    const shown = (open || items.length<=FACET_CHIP_LIMIT) ? items : items.slice(0,FACET_CHIP_LIMIT);
+    const hiddenN = items.length - shown.length;
+    h+=`<div class="fgroup"><h4>${title}</h4>`;
+    shown.forEach(it=>{
+      const val=it.val, lab=fmt?fmt(it):it.val;
+      const on = !!(f[key] && f[key].has(val));
+      h+=`<button class="chip ${on?"on":""}" aria-pressed="${on?"true":"false"}" onclick="toggleFilter('${key}','${esc(val)}')">${esc(lab)} <small>${it.n}</small></button>`;
+    });
+    if(hiddenN>0){
+      h+=`<button class="chip more" aria-expanded="false" onclick="toggleGroupOpen('${key}')">+${hiddenN} more</button>`;
+    }else if(open && items.length>FACET_CHIP_LIMIT){
+      h+=`<button class="chip more" aria-expanded="true" onclick="toggleGroupOpen('${key}')">Show less</button>`;
+    }
+    h+=`</div>`;
+  };
+  const counts=(arr,key,transform)=>{
+    const m={};arr.forEach(o=>{let v=transform?transform(o[key]):o[key];if(v==null||v==="")return;v=String(v);m[v]=(m[v]||0)+1;});
+    return Object.keys(m).sort().map(k=>({val:k,n:m[k]}));
+  };
+  if(S.kind==="pen"){
+    grp("Status","status",counts(S.pens,"status"));
+    const nInked=S.pens.filter(hasInk).length;
+    grp("Ink status","inked",[{val:"yes",n:nInked},{val:"no",n:S.pens.length-nInked}],
+        it=>it.val==="yes"?"💧 Inked":"Clean");
+    grp("Make","make",counts(S.pens,"make"));
+    grp("Nib material","nib_material",counts(S.pens,"nib_material"));
+    grp("Fits hand","fits_hand",counts(S.pens,"fits_hand"));
+  }else if(S.kind==="paper"){
+    grp("Type","type",counts(S.papers,"type"));
+    grp("Ruling","ruling",counts(S.papers,"ruling"));
+    grp("Brand","brand",counts(S.papers,"brand"));
+    grp("Rating","rating",counts(S.papers,"rating"),it=>"★".repeat(+it.val||0)||it.val);
+    grp("Status","status",counts(S.papers,"status"));
+  }else if(S.kind==="ink"){
+    grp("Color","color_match",counts(S.inks,"color_match"));
+    grp("Sheen","sheen",counts(S.inks,"sheen"));
+    grp("Shimmer","shimmer",counts(S.inks,"shimmer",v=>v?"true":"false"),it=>it.val==="true"?"Shimmer":"No shimmer");
+    grp("Alkaline","alkaline",counts(S.inks,"alkaline"),it=>it.val==="Yes"?"⚠ Alkaline":"Not alkaline");
+    grp("Type","type",counts(S.inks,"type"));
+    grp("Status","status",counts(S.inks,"status"));
+  }else{
+    // Kind = All — one combined Status facet and one combined Maker/Brand facet.
+    const allRecs=[...S.pens,...S.inks.map(i=>({...i,status:i.status})),...S.papers];
+    grp("Status","status",counts(allRecs,"status"));
+    const makers=[...S.pens.map(p=>p.make),...S.inks.map(i=>i.brand),...S.papers.map(p=>p.brand)];
+    const mc={};makers.forEach(m=>{if(m)mc[m]=(mc[m]||0)+1;});
+    grp("Maker","make",Object.keys(mc).sort().map(k=>({val:k,n:mc[k]})));
+  }
+  const activeCount=Object.values(f).reduce((a,s)=>a+(s?s.size:0),0);
+  if(activeCount) h=`<button class="btn ghost" style="width:100%;margin-bottom:14px" onclick="clearFilters()">Clear filters (${activeCount})</button>`+h;
+  side.innerHTML=h||`<div class="empty">No filters yet</div>`;
+}
+window.toggleFilter=(k,v)=>{
+  if(!S.filters[k]) S.filters[k]=new Set();
+  if(S.filters[k].has(v)) S.filters[k].delete(v); else S.filters[k].add(v);
+  if(!S.filters[k].size) delete S.filters[k];
+  render();
+};
+window.toggleGroupOpen=(k)=>{ S.filterOpen[k]=!S.filterOpen[k]; renderSide(); };
+window.clearFilters=()=>{ S.filters={}; S.filterOpen={}; render(); };
+
+function renderCards(){
+  const list=activeList();
+  const noun = S.kind==="ink"?"ink":S.kind==="paper"?"paper":S.kind==="pen"?"pen":"item";
+  $("#count").textContent = `${list.length} ${noun}${list.length===1?"":"s"}`+
+    (Object.keys(S.filters).length?" (filtered)":"");
+  const eff = effLayout();
+  const box=$("#cards"); box.className=eff;
+  if(!list.length){
+    box.innerHTML = (S.pens.length+S.inks.length+S.papers.length===0)
+      ? emptyCollectionHTML()
+      : `<div class="empty">Nothing here yet. Click <b>+ Add</b> to start.</div>`;
+    return;
+  }
+  if(S.kind==="ink"&&eff==="wall"){ box.innerHTML=renderWall(list); return; }
+  if(eff==="table"){ box.innerHTML=collectionTable(list); return; }
+  if(S.kind==="pen"){ box.innerHTML = eff==="compact" ? compactPens(list) : galleryPens(list); return; }
+  if(S.kind==="ink"){ box.innerHTML = list.map(inkCard).join(""); return; }
+  if(S.kind==="paper"){ box.innerHTML = list.map(paperCard).join(""); return; }
+  // Kind = All — mixed pen/ink/paper cards in one gallery/compact grid.
+  box.innerHTML = eff==="compact"
+    ? list.map(({kind,rec})=>kind==="pen"?compactPens([rec]):mixedCompactCard(kind,rec)).join("")
+    : list.map(({kind,rec})=>kind==="pen"?galleryPens([rec],true):mixedGalleryCard(kind,rec)).join("");
+}
+function emptyCollectionHTML(){
+  return `<div class="empty" style="padding:70px 20px">
+    <div style="font-size:15px;color:var(--txt);font-weight:600;margin-bottom:8px">Nothing in the collection yet</div>
+    <div style="max-width:44ch;margin:0 auto 18px">Add your first pen, or bring in a spreadsheet you already keep.</div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button class="btn" onclick="document.getElementById('addBtn').click()">+ Add a pen</button>
+      <button class="btn sec" onclick="openData()">⇄ Import a spreadsheet</button>
+    </div></div>`;
+}
+function mixedGalleryCard(kind,rec){
+  if(kind==="ink") return inkCard(rec).replace('class="card"','class="card" style="position:relative"').replace('<div class="ph">',`<div class="ph"><span class="kindpill">Ink</span>`);
+  return paperCard(rec).replace('class="card"','class="card" style="position:relative"').replace('<div class="ph">',`<div class="ph"><span class="kindpill">Paper</span>`);
+}
+function mixedCompactCard(kind,rec){
+  const alt=ENT[kind].label(rec);
+  const th=firstPhoto(kind,rec.id);
+  const media = th ? `<img class="media" src="${esc(th)}" alt="${esc(alt)}" loading="lazy">`
+    : kind==="ink" ? `<div class="media" style="background:${COLOR_HEX[rec.color_match]||'#333'};border-radius:6px"></div>`
+    : `<div class="media" style="display:grid;place-items:center;font-size:20px">📄</div>`;
+  return `<button class="pen" onclick="${kind==='ink'?`openInk('${rec.id}')`:`openPaper('${rec.id}')`}">
+    ${media}
+    <div class="mid">
+      <div class="nm">${esc(alt)}</div>
+      <div class="spec">${kind==="ink"?esc(rec.color_match||"—"):esc(rec.type||"—")}</div>
+    </div>
+    <div class="money"><div class="badge ${statusClass(rec.status)}">${esc(rec.status||"")}</div></div></button>`;
+}
+function renderWall(list){
+  const order=c=>{const i=COLORS.indexOf(c);return i<0?99:i;};
+  const l=[...list].sort((a,b)=>order(a.color_match)-order(b.color_match)
+    ||String(a.brand||"").localeCompare(String(b.brand||"")));
+  return l.map(i=>{
+    const sw=firstPhoto("ink",i.id,"swab");
+    return `<div class="wtile" onclick="openInk('${i.id}')">
+      ${sw?`<img src="${esc(sw)}" alt="" loading="lazy">`:`<div class="wcolor" style="background:${COLOR_HEX[i.color_match]||'#333'}"></div>`}
+      <div class="wlabel">${esc(i.brand)}<br><b>${esc(i.name)}</b>${i.shimmer?" ✦":""}</div>
+    </div>`;}).join("");
+}
+function thumb(type,o,alt){
+  const u=firstPhoto(type,o.id);  // index 0 = user's chosen default, no tag override
+  if(u) return `<img src="${esc(u)}" alt="${esc(alt||"")}" loading="lazy">`;
+  if(type==="ink") return `<div class="swatch" style="background:${COLOR_HEX[o.color_match]||'#333'}"></div>`;
+  if(type==="paper") return `<span aria-hidden="true">📄</span>`;
+  return `<span aria-hidden="true">✒</span>`;
+}
+function paperCard(p){
+  const spec=[p.size,p.gsm?p.gsm+"gsm":"",p.ruling].filter(Boolean).join(" · ");
+  const stars=p.rating?"★".repeat(+p.rating):"";
+  const alt=`${esc(p.brand)} ${esc(p.name)}`;
+  if(effLayout()==="compact") return `<div class="lrow" onclick="openPaper('${p.id}')">
+    <div class="li">${firstPhoto("paper",p.id)?`<img class="li" src="${esc(firstPhoto("paper",p.id))}" alt="${alt}">`:""}</div>
+    <div><div class="t">${esc(p.brand)}</div><div class="muted">${esc(p.name)}</div></div>
+    <div class="muted">${esc(spec)}</div>
+    <div class="muted">${stars}</div>
+    <div class="money">${money(p.price)}</div>
+    <div><span class="badge ${statusClass(p.status)}">${esc(p.status)}</span></div></div>`;
+  return `<div class="card" onclick="openPaper('${p.id}')">
+    <div class="ph">${thumb("paper",p,alt)}</div>
+    <div class="bd">
+      <div class="t">${esc(p.brand)}</div>
+      <div class="s">${esc(p.name)}</div>
+      <div class="s">${esc(spec)}${stars?" · "+stars:""}</div>
+      <div class="row"><span class="pricetag">${money(p.price)}</span>
+        <span class="badge ${statusClass(p.status)}">${esc(p.status)}</span></div>
+    </div></div>`;
+}
+function inkCard(i){
+  const dots = (i.shimmer?"✦ ":"")+(i.sheen&&i.sheen!=="None"?"~"+esc(i.sheen):"");
+  const th=firstPhoto("ink",i.id);
+  const alt=`${esc(i.brand)} ${esc(i.name)}`;
+  if(effLayout()==="compact") return `<div class="lrow" onclick="openInk('${i.id}')">
+    <div class="swatch" style="background:${COLOR_HEX[i.color_match]||'#333'}">${th?`<img class="li" src="${esc(th)}" alt="${alt}">`:""}</div>
+    <div><div class="t">${esc(i.brand)}</div><div class="muted">${esc(i.name)}</div></div>
+    <div class="muted">${esc(i.color_match)}</div>
+    <div class="muted">${dots||"—"}</div>
+    <div class="muted">${esc(i.type||"")}</div>
+    <div><span class="badge ${statusClass(i.status)}">${esc(i.status)}</span></div></div>`;
+  return `<div class="card" onclick="openInk('${i.id}')">
+    <div class="ph">${thumb("ink",i,"Swab of "+alt)}</div>
+    <div class="bd">
+      <div class="t">${esc(i.brand)}</div>
+      <div class="s">${esc(i.name)}</div>
+      <div class="row"><span class="pricetag">${esc(i.color_match||"")} ${dots}</span>
+        <span class="badge ${statusClass(i.status)}">${esc(i.status)}</span></div>
+    </div></div>`;
+}
+
+/* ============================ pen cards: gallery / compact ============================
+   Ported from the reviewed redesign prototype. A pen without a photo yet shows a drawn
+   placeholder (barrel colourway + nib metal) instead of an empty box, so the grid holds
+   its shape as photos are added — the card is the same size either way. */
+function shade(hex,f){const n=parseInt(hex.slice(1),16);
+  const r=Math.round(((n>>16)&255)*f),g=Math.round(((n>>8)&255)*f),b=Math.round((n&255)*f);
+  return "#"+[r,g,b].map(v=>Math.max(0,Math.min(255,v)).toString(16).padStart(2,"0")).join("");}
+function nibGrad(m){
+  const s=(m||"").toLowerCase();
+  if(s.includes("21k"))return"g21"; if(s.includes("18k"))return"g18";
+  if(s.includes("14k")||s.includes("gold"))return"g14";
+  if(s.includes("steel"))return"gst"; return"gun";
+}
+const MATCOL=[[/pearl|ivory|cream|white/i,"#D9D4C6"],[/blue.*marble|marble.*blue/i,"#3E5F91"],
+ [/oxblood|burgundy|maroon/i,"#7C2B2E"],[/tortoise|amber|honey/i,"#9A6520"],[/olive|wood/i,"#6E5C2F"],
+ [/green|jade/i,"#2E6B4A"],[/red/i,"#8A2E2E"],[/blue/i,"#33578C"],[/purple|violet|plum/i,"#5B3E82"],
+ [/orange/i,"#B5601F"],[/brown|cocoa/i,"#6E4622"],[/silver|chrome|steel|grey|gray/i,"#8892A0"],
+ [/black|ebonite/i,"#232830"]];
+const matColor=t=>{for(const[re,c]of MATCOL)if(re.test(t||""))return c;return"#4A5460";};
+function penSil(p){
+  const c=matColor(p.material_color), g=nibGrad(p.nib_material);
+  return `<svg class="sil" viewBox="0 0 200 46" aria-hidden="true">
+    <rect x="4" y="12" width="118" height="22" rx="11" fill="${c}"/>
+    <rect x="4" y="12" width="46" height="22" rx="11" fill="${shade(c,1.18)}"/>
+    <rect x="47" y="12" width="5" height="22" fill="url(#${g})" opacity=".9"/>
+    <path d="M122 14h14c5 0 8 3 8 9s-3 9-8 9h-14z" fill="${shade(c,.72)}"/>
+    <path d="M143 16.4l24 4.7v3.8l-24 4.7z" fill="url(#${g})" stroke="rgba(0,0,0,.34)" stroke-width=".7"/>
+    <path d="M148.5 23h15" stroke="rgba(0,0,0,.42)" stroke-width="1"/>
+    <circle cx="150" cy="23" r="1.5" fill="rgba(0,0,0,.42)"/>
+  </svg>`;
+}
+function nibSVG(p){
+  const g=nibGrad(p.nib_material);
+  const stamp=(p.nib_grind||"").split(/\s+/)[0].slice(0,4).toUpperCase();
+  return `<svg class="nib" viewBox="0 0 40 64" aria-hidden="true">
+    <path d="M20 1.5c9.4 0 16.5 7 16.5 17v7.6c0 14.4-8.4 28.4-16.5 36.4C11.9 54.5 3.5 40.5 3.5 26.1V18.5c0-10 7.1-17 16.5-17z"
+      fill="url(#${g})" stroke="rgba(0,0,0,.42)" stroke-width="1"/>
+    <circle cx="20" cy="27" r="3.6" fill="var(--bg)"/>
+    <path d="M20 30.6V60" stroke="var(--bg)" stroke-width="1.7" stroke-linecap="round"/>
+    <text x="20" y="16.5" text-anchor="middle" font-family="sans-serif" font-size="8.5"
+      font-weight="700" letter-spacing=".6" fill="rgba(0,0,0,.55)">${esc(stamp)}</text>
+  </svg>`;
+}
+// est_value ("Asking reference") is provenance, not a valuation — it's shown only
+// when a pen is actually headed for sale (Will Sell / Listed), never as a running
+// gain/loss figure. See framing rule in the build brief.
+const forSale = p => p.status==="Will Sell" || p.status==="Listed";
+function acqShort(p){
+  if(!p.date_acquired) return "";
+  const d=new Date(p.date_acquired); if(isNaN(d)) return "";
+  return d.toLocaleDateString(undefined,{month:"short",year:"numeric"});
+}
+function galleryPens(list,pill){
+  return list.map(p=>{
+    const photos=photosFor("pen",p.id), src=photos.length?photoUrl(photos[0]):null;
+    const showPill=p.status && p.status!=="Keep";
+    const alt=`${esc(p.make)} ${esc(p.model)}`;
+    const media = src
+      ? `<img src="${esc(src)}" alt="${alt}${p.material_color?", "+esc(p.material_color):""}" loading="lazy">`
+        + (photos.length>1?`<span class="cnt">${photos.length} photos</span>`:"")
+      : `${penSil(p)}<span class="pend">Photo pending</span>`;
+    const badge = showPill?`<span class="badge ${statusClass(p.status)}">${esc(p.status)}</span>`:"";
+    const acq=acqShort(p);
+    return `<button class="gcard" onclick="openPen('${p.id}')">
+      <div class="media">${pill?'<span class="kindpill">Pen</span>':''}${media}${badge}</div>
+      <div class="gb">
+        <div class="nm">${esc(p.make)} ${esc(p.model)}${hasInk(p)?" 💧":""}</div>
+        <div class="mat"><span class="matdot" style="background:${matColor(p.material_color)}"></span><span>${esc(p.material_color||"—")}</span></div>
+        <div class="spec">${esc(p.nib_grind||"—")}${p.nib_material?" · "+esc(p.nib_material):""}</div>
+        <div class="foot">
+          <span class="paid">paid ${money(p.paid)}${acq?" · "+acq:""}</span>
+          ${forSale(p)&&p.est_value!=null?`<span class="est">ask ${money(p.est_value)}</span>`:""}
+        </div>
+      </div></button>`;
+  }).join("");
+}
+function compactPens(list){
+  return list.map(p=>{
+    const showPill=p.status && p.status!=="Keep";
+    const src=firstPhoto("pen",p.id);
+    const alt=`${esc(p.make)} ${esc(p.model)}`;
+    const media = src ? `<img class="media" src="${esc(src)}" alt="${alt}" loading="lazy">` : nibSVG(p);
+    return `<button class="pen" onclick="openPen('${p.id}')">
+      ${media}
+      <div class="mid">
+        <div class="nm">${esc(p.make)} ${esc(p.model)}${hasInk(p)?" 💧":""}</div>
+        <div class="mat"><span class="matdot" style="background:${matColor(p.material_color)}"></span><span>${esc(p.material_color||"—")}</span></div>
+        <div class="spec">${esc(p.nib_grind||"—")}${p.nib_material?" · "+esc(p.nib_material):""}</div>
+      </div>
+      <div class="money">
+        <div class="paid">paid ${money(p.paid)}</div>
+        ${forSale(p)&&p.est_value!=null?`<div class="est">ask ${money(p.est_value)}</div>`:""}
+        ${showPill?`<div class="badge ${statusClass(p.status)}">${esc(p.status)}</div>`:""}
+      </div></button>`;
+  }).join("");
+}
+/* ── Table layout (Collection): one dense sortable table across kinds ── */
+S.tblSort=S.tblSort||{col:"name",dir:1};
+function collectionTable(list){
+  const rows = list.map(x=>x.kind ? x : {kind:S.kind,rec:x});
+  const colDefs=[["name","Name"],["material","Material"],["nib","Nib"],["acquired","Acquired"],["paid","Paid"],["status","Status"]];
+  const val=(kind,rec,col)=>{
+    if(col==="name") return ENT[kind].label(rec);
+    if(col==="material") return kind==="pen"?rec.material_color:kind==="ink"?rec.color_match:rec.type;
+    if(col==="nib") return kind==="pen"?[rec.nib_grind,rec.nib_material].filter(Boolean).join(" · "):"—";
+    if(col==="acquired") return kind==="pen"?(rec.date_acquired||""):(rec.added_at||"").slice(0,10);
+    if(col==="paid") return kind==="pen"?rec.paid:(kind==="paper"?rec.price:null);
+    if(col==="status") return rec.status||"";
+  };
+  const {col,dir}=S.tblSort;
+  rows.sort((a,b)=>{
+    let av=val(a.kind,a.rec,col), bv=val(b.kind,b.rec,col);
+    if(col==="paid"){av=av==null?-Infinity:Number(av);bv=bv==null?-Infinity:Number(bv);return (av-bv)*dir;}
+    return String(av||"").localeCompare(String(bv||""))*dir;
+  });
+  const openFn=(kind,id)=>kind==="pen"?`openPen('${id}')`:kind==="ink"?`openInk('${id}')`:`openPaper('${id}')`;
+  return `<div style="overflow:auto"><table class="coltbl"><thead><tr>
+    ${colDefs.map(([c,lab])=>`<th onclick="tblSortBy('${c}')">${lab}${col===c?(dir>0?" ▲":" ▼"):""}</th>`).join("")}
+    </tr></thead><tbody>
+    ${rows.map(({kind,rec})=>`<tr onclick="${openFn(kind,rec.id)}">
+      <td>${esc(val(kind,rec,"name"))}</td>
+      <td>${esc(val(kind,rec,"material")||"—")}</td>
+      <td>${esc(val(kind,rec,"nib"))}</td>
+      <td>${esc(val(kind,rec,"acquired")||"—")}</td>
+      <td class="num">${money(val(kind,rec,"paid"))}</td>
+      <td><span class="badge ${statusClass(rec.status)}">${esc(rec.status||"")}</span></td>
+    </tr>`).join("")}
+    </tbody></table></div>`;
+}
+window.tblSortBy=(col)=>{
+  if(S.tblSort.col===col) S.tblSort.dir*=-1; else S.tblSort={col,dir:1};
+  renderCards();
+};
+
+/* ============================ Today ============================ */
+const NUMWORD=["Zero","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten"];
+const nw=n=>n<=10?NUMWORD[n]:String(n);
+function fmtDate(s){ if(!s)return""; const d=new Date(s); return isNaN(d)?String(s):d.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}); }
+function renderToday(){
+  const box=$("#todayView");
+  const pens=S.pens, inks=S.inks;
+  if(!pens.length && !inks.length && !S.papers.length){
+    box.innerHTML=`<div class="empty-today" style="grid-column:1/-1">
+      <div class="headline">Nothing in the collection yet.</div>
+      <div class="subline" style="margin:10px auto 18px">Add your first pen, or bring in a spreadsheet you already keep — the rest of this page fills in once there's something to track.</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn" onclick="document.getElementById('addBtn').click()">+ Add a pen</button>
+        <button class="btn sec" onclick="openData()">⇄ Import a spreadsheet</button>
+      </div></div>`;
+    return;
+  }
+  const inCabinet=pens.filter(p=>p.status!=="Sold");
+  const inkedPens=inCabinet.filter(hasInk);
+  const liveInks=inks.filter(i=>i.status!=="Dispose");
+  // Score every clean, kept pen against every live ink with the same local
+  // pairing engine used on the pen/ink detail sheets — no separate logic.
+  const combos=[];
+  inCabinet.filter(p=>p.status==="Keep"&&!hasInk(p)).forEach(pen=>{
+    liveInks.forEach(ink=>{ const r=scoreInkForPen(pen,ink); combos.push({pen,ink,score:r.s,why:r.why,warn:r.warn}); });
+  });
+  combos.sort((a,b)=>b.score-a.score);
+  const seenPen=new Set(); const ready=[];
+  for(const c of combos){ if(c.score<1) break; if(seenPen.has(c.pen.id)) continue; seenPen.add(c.pen.id); ready.push(c); if(ready.length>=3) break; }
+  const steer=combos.filter(c=>c.score<=-2).sort((a,b)=>a.score-b.score)[0];
+
+  const dow=new Date().toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"});
+  let headline,subline;
+  if(!inkedPens.length){
+    headline="Nothing is inked.";
+    subline=`${nw(inCabinet.length)} pen${inCabinet.length===1?"":"s"}, all of them clean and empty.`+
+      (ready.length?` ${nw(ready.length)} pairing${ready.length===1?"":"s"} below ${ready.length===1?"is":"are"} drawn from what is actually in the cabinet.`:"");
+  }else{
+    headline=inkedPens.length===1?"One pen is inked.":`${nw(inkedPens.length)} pens are inked.`;
+    const rest=inCabinet.length-inkedPens.length;
+    subline=rest>0?`${nw(rest)} more sit clean in the cabinet.`:"Every pen in the cabinet is holding ink.";
+  }
+  const daysInked=p=>{if(!p.inked_date)return null;const d=Math.floor((Date.now()-new Date(p.inked_date))/86400000);return isNaN(d)?null:d;};
+  const inkedListHTML=inkedPens.length?`<div class="inked-list">${inkedPens.map(p=>{
+    const d=daysInked(p);
+    return `<div class="inked-row">
+      <div style="min-width:0;flex:1"><div class="nm">${esc(p.make)} ${esc(p.model)}</div>
+        <div class="ink">${esc(p.inked_with||"")}</div></div>
+      <span class="days">${d!=null?d+"d":""}</span>
+      <button class="btn ghost" style="min-height:auto;padding:7px 12px;font-size:12.5px" onclick="markPenCleaned('${p.id}')">🧼 Mark cleaned</button>
+    </div>`;}).join("")}</div>`:"";
+
+  const pairingHTML=c=>`<div class="pairing">
+      ${penSil(c.pen)}
+      <span class="swatch" style="background:${COLOR_HEX[c.ink.color_match]||'#333'}"></span>
+      <div class="txt"><b>${esc(ENT.pen.label(c.pen))} + ${esc(ENT.ink.label(c.ink))}</b>
+        <div class="why">${esc(c.why[0]||"")}</div></div>
+      <button class="go" onclick="inkThisPairing('${c.pen.id}','${c.ink.id}')">Ink this</button>
+    </div>`;
+  const steerHTML=c=>`<div class="steerclear">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--bad)" stroke-width="1.8" stroke-linecap="round" style="width:18px;height:18px;flex:none;margin-top:1px"><path d="M12 8.5v5"/><circle cx="12" cy="16.6" r=".9" fill="var(--bad)" stroke="none"/><path d="M10.3 3.9 2.6 17.4a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" stroke-linejoin="round"/></svg>
+      <div><b>Steer clear — ${esc(ENT.ink.label(c.ink))} in the ${esc(ENT.pen.label(c.pen))}</b>
+        <div class="why">${esc(c.warn[0]||"")}</div></div></div>`;
+
+  const left=`
+    <div>
+      <div class="eyebrow">${esc(dow)}</div>
+      <div class="headline">${esc(headline)}</div>
+      <div class="subline">${esc(subline)}</div>
+      ${inkedListHTML}
+    </div>
+    ${ready.length?`<div>
+      <div class="sec-head"><span class="eyebrow">Ready to ink</span><span class="line"></span></div>
+      ${ready.map(pairingHTML).join("")}
+    </div>`:(inCabinet.length&&liveInks.length?"":`<div class="subline">Add a pen and an ink to see pairings here.</div>`)}
+    ${steer?steerHTML(steer):""}
+  `;
+
+  const nInk=liveInks.length;
+  const makers=uniq(inCabinet.map(p=>p.make)).length;
+  const flexN=inCabinet.filter(p=>/flex/i.test(p.nib_grind||"")).length;
+  const willSell=pens.filter(p=>p.status==="Will Sell").length;
+  const noRef=inCabinet.filter(p=>p.est_value==null||p.est_value==="").length;
+  const noPhoto=pens.filter(p=>!photosFor("pen",p.id).length).length;
+  const photographed=pens.length-noPhoto;
+  const pct=pens.length?Math.round(photographed/pens.length*100):0;
+  const inksNoPhoto=inks.filter(i=>!photosFor("ink",i.id).length).length;
+  const inkPhotoNote=inks.length?(inksNoPhoto===0?"inks are done":`${inks.length-inksNoPhoto} of ${inks.length} inks photographed`):"";
+
+  const allAdded=[...pens.map(p=>({kind:"pen",rec:p})),...inks.map(i=>({kind:"ink",rec:i})),...S.papers.map(p=>({kind:"paper",rec:p}))]
+    .filter(x=>x.rec.added_at).sort((a,b)=>String(b.rec.added_at).localeCompare(String(a.rec.added_at)));
+  const last=allAdded[0];
+  let lastHTML="";
+  if(last){
+    const r=last.rec,when=(r.added_at||"").slice(0,10);
+    let sub="",chip="";
+    if(last.kind==="pen"){ sub=[when&&fmtDate(when),r.source,r.paid!=null?money(r.paid):""].filter(Boolean).join(" · ");
+      chip=[r.nib_grind,r.nib_material].filter(Boolean).join(" · "); }
+    else if(last.kind==="ink"){ sub=[when&&fmtDate(when),r.color_match].filter(Boolean).join(" · ");
+      chip=r.sheen&&r.sheen!=="None"?r.sheen+" sheen":(r.shimmer?"Shimmer":""); }
+    else { sub=[when&&fmtDate(when),r.type].filter(Boolean).join(" · "); }
+    lastHTML=`<div class="rail-panel"><div class="eyebrow">Last added</div>
+      <div style="font-family:var(--serif);font-size:14.5px;font-weight:700;margin-top:11px">${esc(ENT[last.kind].label(r))}</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-top:4px">${esc(sub)}</div>
+      ${chip?`<div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);margin-top:8px">${esc(chip)}</div>`:""}
+      </div>`;
+  }
+
+  const right=`
+    <div class="rail-panel">
+      <div class="eyebrow">In the cabinet</div>
+      <div style="margin-top:13px">
+        <div class="rail-row"><span>Pens</span><b>${inCabinet.length}</b></div>
+        <div class="rail-row" style="margin-top:11px"><span>Inks</span><b>${nInk}</b></div>
+        <div class="rail-row" style="margin-top:11px"><span>Makers</span><b>${makers}</b></div>
+        <div class="rail-hr"></div>
+        <div class="rail-row"><span>Flex or semi-flex nibs</span><b>${flexN}</b></div>
+      </div>
+    </div>
+    <div class="rail-panel">
+      <div class="eyebrow">Worth doing</div>
+      <div style="margin-top:13px;display:flex;flex-direction:column;gap:10px">
+        <div class="rail-todo"><span class="n" style="color:var(--bad)">${willSell}</span><span>marked <b style="color:var(--bad)">Will Sell</b> but not listed yet</span></div>
+        <div class="rail-hr" style="margin:0"></div>
+        <div class="rail-todo"><span class="n">${noRef}</span><span>pen${noRef===1?"":"s"} have no asking reference</span></div>
+        <div class="rail-hr" style="margin:0"></div>
+        <div class="rail-todo"><span class="n">${noPhoto}</span><span>still to photograph</span></div>
+        <div>
+          <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+          <div class="progress-lab">${photographed} of ${pens.length} photographed${inkPhotoNote?" · "+esc(inkPhotoNote):""}</div>
+        </div>
+      </div>
+    </div>
+    ${lastHTML}
+  `;
+  box.innerHTML=`<div>${left}</div><div>${right}</div>`;
+}
+window.markPenCleaned=async(id)=>{
+  const p=S.pens.find(x=>x.id===id); if(!p)return;
+  p.inked_with=""; p.inked_date=""; p.last_cleaned=new Date().toISOString().slice(0,10);
+  await savePens(); render(); toast("Marked cleaned",true);
+};
+window.inkThisPairing=async(penId,inkId)=>{
+  const p=S.pens.find(x=>x.id===penId), i=S.inks.find(x=>x.id===inkId);
+  if(!p||!i)return;
+  p.inked_with=ENT.ink.label(i); p.inked_date=new Date().toISOString().slice(0,10);
+  await savePens(); render(); toast(`Inked with ${ENT.ink.label(i)}`,true);
+};
+window.startPhotoRun=()=>{
+  const openers={pen:"openPen",ink:"openInk",paper:"openPaper"};
+  const kindLabel={pen:"Pens",ink:"Inks",paper:"Papers"};
+  const groups=["pen","ink","paper"].map(kind=>({
+    kind, items:ENT[kind].list().filter(r=>!photosFor(kind,r.id).length)
+  })).filter(g=>g.items.length);
+  const total=groups.reduce((a,g)=>a+g.items.length,0);
+  if(!total){toast("Everything already has a photo",true);return;}
+  modal(`<div class="sheet"><div class="head"><h2>📷 Photo run</h2><button class="x" aria-label="Close" onclick="closeModal()">✕</button></div>
+    <div class="body">
+      <p class="muted" style="font-size:13px">${total} item${total===1?"":"s"} still need${total===1?"s":""} a photo, across pens, inks, and papers. Open one, then Find photos (AI), scan the phone QR, or upload — whichever is fastest.</p>
+      ${groups.map(g=>`
+        <h4 style="margin:16px 0 6px;color:var(--muted);font-size:12px;letter-spacing:.5px">${kindLabel[g.kind].toUpperCase()} (${g.items.length})</h4>
+        <div style="display:flex;flex-direction:column;gap:1px;background:var(--line);border-radius:10px;overflow:hidden">
+          ${g.items.map(r=>`<button class="pen" style="border-radius:0;grid-template-columns:1fr auto" onclick="closeModal();${openers[g.kind]}('${r.id}')">
+            <div class="mid"><div class="nm">${esc(ENT[g.kind].label(r))}</div></div>
+            <span class="muted" style="font-size:12px">Open ›</span></button>`).join("")}
+        </div>`).join("")}
+    </div></div>`);
+};
+
+/* ============================ Purchase records ============================ */
+S.recSearch=""; S.recSort={col:"acquired",dir:-1};
+window.openRecords=()=>{ S.view="records"; render(); };
+function renderRecords(){
+  const box=$("#recordsView");
+  const q=S.recSearch.toLowerCase();
+  let rows=S.pens.filter(p=>!q||`${p.make} ${p.model} ${p.source} ${p.seller}`.toLowerCase().includes(q));
+  const {col,dir}=S.recSort;
+  const val=(p,c)=>{
+    if(c==="pen") return ENT.pen.label(p);
+    if(c==="acquired") return p.date_acquired||"";
+    if(c==="paid") return p.paid==null?-Infinity:Number(p.paid);
+    if(c==="from") return [p.source,p.seller].filter(Boolean).join(" · ");
+    if(c==="ref") return p.est_value==null?-Infinity:Number(p.est_value);
+  };
+  rows=rows.sort((a,b)=>{const av=val(a,col),bv=val(b,col);
+    return typeof av==="number" ? (av-bv)*dir : String(av).localeCompare(String(bv))*dir;});
+  const sale=S.pens.filter(forSale);
+  const saleTotal=sale.reduce((a,p)=>a+(p.paid!=null?Number(p.paid):0),0);
+  const total=S.pens.length;
+  const spent=S.pens.reduce((a,p)=>a+(p.paid!=null?Number(p.paid):0),0);
+  const noDate=S.pens.filter(p=>!p.date_acquired).length;
+  const noRef=S.pens.filter(p=>p.est_value==null||p.est_value==="").length;
+  const arrow=c=>col===c?(dir>0?" ▲":" ▼"):"";
+  box.innerHTML=`<div class="recwrap">
+    <div class="rec-head">
+      <div>
+        <div class="crumb">More / Purchase records</div>
+        <h1>Purchase records</h1>
+        <div class="sub">What you paid, when, and who you bought it from — so you have the reference in front of you when something goes up for sale.</div>
+      </div>
+      <span style="flex:1"></span>
+      <input id="recSearch" placeholder="Find a pen or a seller…"
+        style="background:var(--panel2);border:1px solid var(--border-ctl);color:var(--txt);padding:9px 12px;border-radius:9px;width:230px"
+        value="${esc(S.recSearch)}">
+      <button class="btn sec" onclick="exportCSV('pen')">⇩ Export CSV</button>
+    </div>
+    ${sale.length?`<div class="rec-panel rec-pin">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="flex:1">
+          <div style="font-size:13.5px;font-weight:700">${sale.length} pen${sale.length===1?"":"s"} marked for sale</div>
+          <div style="font-size:12.5px;color:var(--muted);margin-top:3px">You paid ${money(saleTotal)} for ${sale.length===1?"it":"them"}.</div>
+        </div>
+        <button class="btn" onclick="copyListings()">📋 Draft a r/Pen_Swap post</button>
+      </div>
+    </div>`:""}
+    <div class="rec-panel">
+      <div style="overflow:auto"><table class="rectbl"><thead><tr>
+        <th onclick="recSortBy('pen')">Pen${arrow('pen')}</th>
+        <th onclick="recSortBy('acquired')">Acquired${arrow('acquired')}</th>
+        <th class="num" onclick="recSortBy('paid')">Paid${arrow('paid')}</th>
+        <th onclick="recSortBy('from')">Bought from${arrow('from')}</th>
+        <th class="num" onclick="recSortBy('ref')">Asking ref.${arrow('ref')}</th>
+      </tr></thead><tbody>
+      ${rows.length?rows.map(p=>`<tr onclick="openPen('${p.id}')">
+        <td><b>${esc(ENT.pen.label(p))}</b>${forSale(p)?` <span class="badge ${statusClass(p.status)}" style="margin-left:5px">${esc(p.status)}</span>`:""}</td>
+        <td>${p.date_acquired?fmtDate(p.date_acquired):"—"}</td>
+        <td class="num">${money(p.paid)}</td>
+        <td>${esc([p.source,p.seller].filter(Boolean).join(" · ")||"—")}</td>
+        <td class="num">${p.est_value!=null&&p.est_value!==""?money(p.est_value):"—"}</td>
+      </tr>`).join(""):`<tr><td colspan="5" class="muted" style="padding:20px;text-align:center">No pens match.</td></tr>`}
+      </tbody></table></div>
+      <div class="rec-foot">
+        <span>${total} pen${total===1?"":"s"} · <b style="color:var(--txt)">${money(spent)}</b> spent in total</span>
+        <span style="flex:1"></span>
+        <span>${noDate} lack a date · ${noRef} lack an asking reference</span>
+      </div>
+    </div>
+  </div>`;
+  const si=$("#recSearch"); if(si) si.oninput=e=>{S.recSearch=e.target.value;renderRecords();};
+}
+window.recSortBy=(col)=>{ if(S.recSort.col===col) S.recSort.dir*=-1; else S.recSort={col,dir:1}; renderRecords(); };
+
+/* ============================ pen detail / edit ============================ */
+const PEN_DEF=[
+  ["make","Make"],["model","Model"],["material_color","Material / Color"],
+  ["nib_grind","Nib / Grind"],["nib_material","Nib material"],["nibmeister","Nibmeister"],
+  ["paid","Paid ($)","number"],["est_value","Asking reference ($)","number"],
+  ["status","Status","select",STATUS],["date_acquired","Date acquired","date"],
+  ["source","Source"],["seller","Seller"],
+  ["weight","Weight"],["fits_hand","Fits hand","select",["","Yes","No"]],
+  ["filling","Filling system"],["year","Year / Era"],
+  ["inked_with","Currently inked with"],["inked_date","Inked on","date"],
+  ["last_cleaned","Last cleaned","date"],
+  ["notes","Notes","textarea"]
+];
+const PAPER_DEF=[
+  ["brand","Brand"],["name","Product"],
+  ["type","Type","select",PAPERTYPES],
+  ["size","Size (A5, B5…)"],["gsm","Weight (gsm)","number"],
+  ["ruling","Ruling","select",RULINGS],
+  ["surface","Surface","select",["","Coated","Smooth","Absorbent"]],
+  ["rating","FP rating","select",["","5","4","3","2","1"]],
+  ["ghosting","Ghosting","select",SEVERITY],
+  ["bleedthrough","Bleedthrough","select",SEVERITY],
+  ["feathering","Feathering","select",SEVERITY],
+  ["price","Price ($)","number"],
+  ["status","Status","select",["Keep","Dispose"]],
+  ["notes","Notes","textarea"]
+];
+const INK_DEF=[
+  ["brand","Brand"],["name","Name"],
+  ["color_match","Primary color","select",COLORS],
+  ["sheen","Sheen","select",SHEENS],
+  ["shimmer","Shimmer","select",["false","true"]],
+  ["shading","Shading","select",["","None","Moderate","Strong"]],
+  ["alkaline","Alkaline","select",["","Yes","No"]],
+  ["type","Type","select",INKTYPE],
+  ["status","Status","select",INKSTATUS],
+  ["notes","Notes","textarea"]
+];
+function fieldInput(def,val){
+  const [k,lab,type,opts]=def;
+  let inner;
+  if(type==="select") inner=`<select data-k="${k}">${opts.map(o=>`<option ${String(val??"")===String(o)?"selected":""} value="${esc(o)}">${o===""?"—":esc(o)}</option>`).join("")}</select>`;
+  else if(type==="textarea") inner=`<textarea data-k="${k}">${esc(val)}</textarea>`;
+  else inner=`<input data-k="${k}" type="${type||"text"}" value="${esc(val)}">`;
+  return `<div class="field ${type==="textarea"?"full":""}"><label>${lab}</label>${inner}</div>`;
+}
+function collectFields(root,def){
+  const o={};def.forEach(d=>{const el=root.querySelector(`[data-k="${d[0]}"]`);if(!el)return;
+    let v=el.value;
+    if(d[2]==="number") v=v===""?null:Number(v);
+    if(d[0]==="shimmer") v=(v==="true");
+    o[d[0]]=v;});
+  return o;
+}
+function modal(html){ $("#modalRoot").innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()">${html}</div>`; }
+window.closeModal=()=>{$("#modalRoot").innerHTML="";};
+
+function detailSheet(kind,rec,def){
+  if(kind==="pen") return penDetailSheet(rec,def);
+  const title=esc(ENT[kind].label(rec));
+  return `<div class="sheet">
+    <div class="head"><h2>${title}</h2><button class="x" aria-label="Close" onclick="closeModal()">✕</button></div>
+    <div class="body">
+      ${rec.notes?`<div class="pd-panel pd-notes" style="margin-bottom:16px">
+        <div class="eyebrow">Working notes</div>
+        <div class="body">${esc(rec.notes)}</div>
+      </div>`:""}
+      <div class="fields" id="editF">${def.map(d=>fieldInput(d,rec[d[0]])).join("")}</div>
+      <div id="pairPanel"></div>
+      <div id="journalBox" style="margin-top:16px"></div>
+      <h4 style="margin:20px 0 6px;color:var(--muted);font-size:12px;letter-spacing:.5px">PHOTOS
+        <span style="text-transform:none;letter-spacing:0"> — tap the label to retag (photo / swab / writing)</span></h4>
+      <div class="gallery" id="gal"></div>
+      <div id="ai-photo-results"></div>
+    </div>
+    <div class="foot">
+      <button class="btn danger" onclick="deleteRec('${kind}','${rec.id}')">Delete</button>
+      <span style="flex:1"></span>
+      <button class="btn sec" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="saveRec('${kind}','${rec.id}')">Save</button>
+    </div></div>`;
+}
+/* Pen detail: a two-column reading view (nib panel, promoted working notes,
+   purchase record, pairings, photos) with Edit revealing the existing field
+   grid — same #editF / saveRec('pen',...) path as every other kind. */
+function penDetailSheet(p,def){
+  const nibHead=[p.nib_grind,p.nib_material].filter(Boolean).join(" · ")||"Nib not recorded";
+  const vintage=isVintage(p);
+  const chips=[];
+  if(p.filling) chips.push(`<span class="pd-chip">${esc(p.filling)}</span>`);
+  chips.push(`<span class="pd-chip">${vintage?"Vintage":"Modern"}</span>`);
+  if(p.fits_hand==="Yes") chips.push(`<span class="pd-chip good">Fits hand</span>`);
+  else if(p.fits_hand==="No") chips.push(`<span class="pd-chip">Doesn't fit hand</span>`);
+  const boughtFrom=[p.source,p.seller].filter(Boolean).join(" · ");
+  const showAsk = forSale(p) || p.est_value!=null;
+  return `<div class="sheet wide">
+    <div class="head">
+      <h2>${esc(ENT.pen.label(p))}</h2>
+      <button class="btn sec" style="margin-left:auto" onclick="openPenReport('${p.id}')">📝 Report</button>
+      <button class="btn sec" id="pdEditBtn" onclick="togglePenEdit()">Edit</button>
+      <button class="x" aria-label="Close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="body">
+      <div id="pdRead">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px;font-size:13px;color:var(--muted);flex-wrap:wrap">
+          <span class="matdot" style="background:${matColor(p.material_color)}"></span>
+          ${esc(p.material_color||"—")}
+          ${p.status?`<span class="badge ${statusClass(p.status)}">${esc(p.status)}</span>`:""}
+          ${hasInk(p)?`<span>💧 inked with ${esc(p.inked_with)}</span>`:""}
+        </div>
+        <div class="pd-wrap">
+          <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+            <div class="pd-panel pd-nib">
+              ${nibSVG(p)}
+              <div>
+                <div class="eyebrow">The nib</div>
+                <h3>${esc(nibHead)}</h3>
+                <p>${p.nibmeister?"Ground by "+esc(p.nibmeister)+".":"Untouched by a nibmeister."}</p>
+                <div class="pd-chips">${chips.join("")}</div>
+              </div>
+            </div>
+            <div class="pd-panel pd-notes">
+              <div class="eyebrow">Working notes</div>
+              <div class="body">${p.notes?esc(p.notes):'<span class="muted">No notes yet — click Edit to add some.</span>'}</div>
+            </div>
+            <div id="journalBox"></div>
+            <div>
+              <h4 style="margin:0 0 9px;color:var(--muted);font-size:12px;letter-spacing:.5px">PHOTOGRAPHS
+                <span style="text-transform:none;letter-spacing:0"> — tap the label to retag (photo / swab / writing)</span></h4>
+              <div class="gallery" id="gal"></div>
+              <div id="ai-photo-results"></div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+            <div class="pd-panel">
+              <div class="eyebrow">Purchase record</div>
+              <div style="display:flex;align-items:baseline;gap:10px;margin-top:11px">
+                <span style="font-family:var(--serif);font-size:27px;font-weight:700">${money(p.paid)}</span>
+                <span style="font-size:13px;color:var(--muted)">paid</span>
+              </div>
+              <div style="height:1px;background:var(--line);margin:15px 0"></div>
+              <dl class="pd-kv">
+                <dt>Acquired</dt><dd>${p.date_acquired?fmtDate(p.date_acquired):"—"}</dd>
+                <dt>Bought from</dt><dd>${esc(boughtFrom||"—")}</dd>
+                <dt>Weight</dt><dd>${esc(p.weight||"—")}</dd>
+              </dl>
+              ${showAsk?`<div class="pd-askrow">
+                <span>Asking reference</span>
+                <span style="font-variant-numeric:tabular-nums;font-weight:600;color:var(--txt)">${p.est_value!=null&&p.est_value!==""?money(p.est_value):"—"}</span>
+                <span style="flex:1"></span>
+                <span>for when it goes up for sale</span>
+              </div>`:""}
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+                <button class="btn ghost" onclick="markCleaned()">🧼 Mark cleaned</button>
+                ${["Listed","Will Sell"].includes(p.status)?`<button class="btn ghost" onclick="copyOneListing('${p.id}')">📋 Copy listing text</button>`:""}
+              </div>
+            </div>
+            <div id="pairPanel"></div>
+          </div>
+        </div>
+      </div>
+      <div class="fields hidden" id="editF" style="margin-top:6px">${def.map(d=>fieldInput(d,p[d[0]])).join("")}</div>
+    </div>
+    <div class="foot">
+      <button class="btn danger" onclick="deleteRec('pen','${p.id}')">Delete</button>
+      <span style="flex:1"></span>
+      <button class="btn sec" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="saveRec('pen','${p.id}')">Save</button>
+    </div></div>`;
+}
+window.togglePenEdit=()=>{
+  const ef=$("#editF"), rd=$("#pdRead"), btn=$("#pdEditBtn");
+  if(!ef||!rd) return;
+  const entering = ef.classList.contains("hidden");
+  ef.classList.toggle("hidden", !entering);
+  rd.classList.toggle("hidden", entering);
+  if(btn) btn.textContent = entering ? "Done" : "Edit";
+};
+window.markCleaned=()=>{
+  const set=(k,v)=>{const el=document.querySelector(`#editF [data-k="${k}"]`);if(el)el.value=v;};
+  set("last_cleaned",new Date().toISOString().slice(0,10));
+  set("inked_with","");set("inked_date","");
+  toast("Cleared ink & set cleaned date — hit Save to keep");
+};
+/* ============================ journal (dated log, per record) ============================
+   Separate from the single "notes" field: an append-only, timestamped list a pen/ink/paper
+   accrues over time. Pen reports (see openPenReport) are just journal entries with kind
+   "report" instead of "note" — same list, same storage, no extra endpoint. */
+function journalHTML(kind,id){
+  const rec=ENT[kind].list().find(x=>x.id===id); if(!rec) return "";
+  const entries=(rec.journal||[]).slice().sort((a,b)=>(b.date+b.id).localeCompare(a.date+a.id));
+  return `<div class="pd-panel pd-journal">
+    <div class="eyebrow">Journal</div>
+    ${entries.length?entries.map(e=>`<div class="jrow">
+        <div class="jdate">${fmtDate(e.date)}${e.kind==="report"?' <span class="badge">Report</span>':""}</div>
+        <div class="jtext">${esc(e.text)}</div>
+      </div>`).join(""):'<p class="muted" style="font-size:13px;margin-top:8px">No entries yet — jot something after you use it.</p>'}
+    <div class="jadd">
+      <textarea id="jnew" rows="2" placeholder="Add a dated note…"></textarea>
+      <button class="btn sec" onclick="addJournalEntry('${kind}','${id}')">+ Add entry</button>
+    </div>
+  </div>`;
+}
+function renderJournalBox(kind,id){
+  const box=$("#journalBox"); if(!box) return;
+  box.innerHTML=journalHTML(kind,id);
+}
+window.addJournalEntry=async(kind,id)=>{
+  const ta=$("#jnew"); const text=(ta&&ta.value||"").trim();
+  if(!text) return;
+  const rec=ENT[kind].list().find(x=>x.id===id); if(!rec) return;
+  rec.journal=rec.journal||[];
+  rec.journal.push({id:uid(),date:new Date().toISOString().slice(0,10),kind:"note",text});
+  await ENT[kind].save();
+  renderJournalBox(kind,id);
+  toast("Added",true);
+};
+/* ============================ pen report wizard (optional, never prompted) ========== */
+const PEN_REPORT_Q=[
+  ["writing","How did it write today?",["Flawless","Minor hiccups","Frustrating"]],
+  ["nib","Nib feel",["Buttery smooth","Slight feedback","Scratchy"]],
+  ["flow","Ink flow",["Too dry","Just right","Too wet"]],
+  ["comfort","Comfort over a session",["Comfortable","Some fatigue","Uncomfortable"]],
+];
+window.openPenReport=(id)=>{
+  const p=S.pens.find(x=>x.id===id); if(!p) return;
+  modal(`<div class="sheet"><div class="head"><h2>📝 Pen report — ${esc(ENT.pen.label(p))}</h2><button class="x" aria-label="Close" onclick="closeModal()">✕</button></div>
+    <div class="body">
+      <p class="muted" style="font-size:13px">A quick check-in after you've had time with it. Nothing's required — skip whatever doesn't apply.</p>
+      <div class="fields" id="reportF">
+        ${PEN_REPORT_Q.map(([k,lab,opts])=>`<div class="field"><label>${lab}</label>
+          <select data-k="${k}"><option value="">—</option>${opts.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join("")}</select></div>`).join("")}
+        <div class="field full"><label>Anything else?</label><textarea data-k="freetext" rows="3" placeholder="Notes, comparisons, what you'd change…"></textarea></div>
+      </div>
+    </div>
+    <div class="foot"><span style="flex:1"></span><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="savePenReport('${id}')">Save report</button></div>
+  </div>`);
+};
+window.savePenReport=async(id)=>{
+  const p=S.pens.find(x=>x.id===id); if(!p) return;
+  const root=$("#reportF"); if(!root) return;
+  const vals={};
+  root.querySelectorAll("[data-k]").forEach(el=>{vals[el.dataset.k]=el.value.trim();});
+  const parts=PEN_REPORT_Q.filter(([k])=>vals[k]).map(([k,lab])=>`${lab}: ${vals[k]}`);
+  if(!parts.length && !vals.freetext){ toast("Nothing to save"); return; }
+  let text=parts.join(" · ");
+  if(vals.freetext) text = text ? text+"\n"+vals.freetext : vals.freetext;
+  p.journal=p.journal||[];
+  p.journal.push({id:uid(),date:new Date().toISOString().slice(0,10),kind:"report",text});
+  await savePens();
+  toast("Report saved",true);
+  openPen(id);
+};
+function renderGallery(type,id){
+  const gal=$("#gal");if(!gal)return;
+  const rec=ENT[type].list().find(x=>x.id===id);
+  const label=rec?esc(ENT[type].label(rec)):"";
+  const ph=photosFor(type,id);
+  gal.innerHTML = ph.map((e,i)=>{const u=photoUrl(e),t=photoTag(e);
+    return `<div class="gphoto">
+      <img src="${esc(u)}" alt="${label} photo ${i+1}" onclick="lightbox('${esc(u)}')">
+      ${i===0
+        ? `<span class="defb" title="Shown as the thumbnail everywhere">★ Default</span>`
+        : `<button class="defb" title="Set as default photo" aria-label="Set as default photo" onclick="makeDefaultPhoto('${type}','${id}',${i})">☆ Set default</button>`}
+      <div class="topbtns">
+        <button title="Crop / rotate" aria-label="Crop or rotate photo" onclick="openPhotoEditor('${type}','${id}','${esc(u)}')">✂️</button>
+        <button class="delx" title="Delete" aria-label="Delete photo" onclick="delPhoto('${type}','${id}','${esc(u)}')">✕</button>
+      </div>
+      <div class="movebtns">
+        <button ${i===0?"disabled":""} title="Move earlier" aria-label="Move photo left" onclick="movePhoto('${type}','${id}',${i},-1)">‹</button>
+        <button ${i===ph.length-1?"disabled":""} title="Move later" aria-label="Move photo right" onclick="movePhoto('${type}','${id}',${i},1)">›</button>
+      </div>
+      <button class="tagb" title="Click to change type" aria-label="Change photo tag" onclick="cycleTag('${type}','${id}','${esc(u)}','${t}')">${TAG_LABEL[t]||t}</button>
+    </div>`;}).join("")
+    + `<button class="addphoto" onclick="aiFindPhotos('${type}','${id}')"><div style="font-size:24px">✨</div><div>Find photos (AI)</div></button>
+       <button class="addphoto" onclick="openQR('${type}','${id}')"><div style="font-size:24px">+</div><div>Add via phone</div></button>
+       <label class="addphoto"><div style="font-size:24px">⤓</div><div>Upload here</div>
+         <input type="file" accept="image/*" multiple style="display:none" onchange="localUpload('${type}','${id}',this)"></label>`;
+}
+window.movePhoto=async(type,id,idx,dir)=>{
+  const key=type+":"+id;
+  const arr=(S.photos[key]||[]).slice();
+  const j=idx+dir;
+  if(j<0||j>=arr.length) return;
+  [arr[idx],arr[j]]=[arr[j],arr[idx]];
+  await fetch("/api/reorder-photos",{method:"POST",headers:apiHeaders(),
+    body:JSON.stringify({key,urls:arr.map(photoUrl)})});
+  await refreshPhotos();renderGallery(type,id);render();
+};
+window.makeDefaultPhoto=async(type,id,idx)=>{
+  if(idx<=0) return;
+  const key=type+":"+id;
+  const arr=(S.photos[key]||[]).slice();
+  const [item]=arr.splice(idx,1);
+  arr.unshift(item);
+  await fetch("/api/reorder-photos",{method:"POST",headers:apiHeaders(),
+    body:JSON.stringify({key,urls:arr.map(photoUrl)})});
+  await refreshPhotos();renderGallery(type,id);render();toast("Set as default photo");
+};
+
+/* ---------- photo editor: crop + rotate (canvas, no libs) ---------- */
+let PE=null;
+window.openPhotoEditor=(type,id,url)=>{
+  modal(`<div class="sheet" style="max-width:760px"><div class="head"><h2>✂️ Edit photo</h2>
+    <button class="x" aria-label="Close" onclick="peClose()">✕</button></div>
+    <div class="body">
+      <canvas id="pe-canvas"></canvas>
+      <div class="pe-tools">
+        <button class="btn sec" onclick="peRotate(-90)">↺ Rotate left</button>
+        <button class="btn sec" onclick="peRotate(90)">↻ Rotate right</button>
+        <button class="btn ghost" onclick="peReset()">Reset</button>
+      </div>
+      <p class="muted" style="text-align:center;font-size:13px;margin:10px 0 0">
+        Drag on the photo to crop. Saving replaces this photo.</p>
+    </div>
+    <div class="foot">
+      <button class="btn sec" onclick="peClose()">Cancel</button>
+      <button class="btn" id="pe-save" onclick="peSave()">Save</button>
+    </div></div>`);
+  PE={type,id,url,rot:0,img:new Image(),crop:null,drag:null};
+  PE.img.onload=()=>peDraw();
+  PE.img.src=url;
+  const cv=$("#pe-canvas");
+  cv.addEventListener("pointerdown",peDown);
+  cv.addEventListener("pointermove",peMove);
+  cv.addEventListener("pointerup",peUp);
+  cv.addEventListener("pointercancel",peUp);
+};
+function peDims(){ // canvas size = rotated image, capped so huge phone shots stay snappy
+  const max=3200;
+  let w=PE.img.naturalWidth||1,h=PE.img.naturalHeight||1;
+  const sc=Math.min(1,max/Math.max(w,h));
+  w=Math.round(w*sc);h=Math.round(h*sc);
+  return (PE.rot%180===0)?{w,h}:{w:h,h:w};
+}
+function peDrawBase(ctx,w,h){
+  ctx.save();
+  ctx.translate(w/2,h/2);ctx.rotate(PE.rot*Math.PI/180);
+  const iw=(PE.rot%180===0)?w:h, ih=(PE.rot%180===0)?h:w;
+  ctx.drawImage(PE.img,-iw/2,-ih/2,iw,ih);
+  ctx.restore();
+}
+function peDraw(){
+  const cv=$("#pe-canvas");if(!cv||!PE)return;
+  const {w,h}=peDims();
+  cv.width=w;cv.height=h;
+  const ctx=cv.getContext("2d");
+  peDrawBase(ctx,w,h);
+  if(PE.crop){
+    const c=PE.crop;
+    ctx.fillStyle="rgba(0,0,0,.55)";
+    ctx.beginPath();ctx.rect(0,0,w,h);ctx.rect(c.x,c.y,c.w,c.h);ctx.fill("evenodd");
+    ctx.strokeStyle="#fff";ctx.setLineDash([7,5]);ctx.lineWidth=Math.max(2,w/400);
+    ctx.strokeRect(c.x,c.y,c.w,c.h);ctx.setLineDash([]);
+  }
+}
+function pePos(ev){
+  const cv=$("#pe-canvas"),r=cv.getBoundingClientRect();
+  return {x:(ev.clientX-r.left)*cv.width/r.width,
+          y:(ev.clientY-r.top)*cv.height/r.height};
+}
+function peDown(ev){
+  ev.preventDefault();
+  $("#pe-canvas").setPointerCapture(ev.pointerId);
+  PE.drag=pePos(ev);PE.crop=null;peDraw();
+}
+function peMove(ev){
+  if(!PE||!PE.drag)return;
+  const cv=$("#pe-canvas");
+  const p=pePos(ev),d=PE.drag;
+  const clamp=(v,max)=>Math.max(0,Math.min(v,max));
+  const x1=clamp(Math.min(d.x,p.x),cv.width), y1=clamp(Math.min(d.y,p.y),cv.height);
+  const x2=clamp(Math.max(d.x,p.x),cv.width), y2=clamp(Math.max(d.y,p.y),cv.height);
+  PE.crop={x:x1,y:y1,w:x2-x1,h:y2-y1};
+  peDraw();
+}
+function peUp(){
+  if(!PE)return;
+  PE.drag=null;
+  if(PE.crop&&(PE.crop.w<20||PE.crop.h<20))PE.crop=null; // ignore accidental taps
+  peDraw();
+}
+window.peRotate=d=>{if(!PE)return;PE.rot=(PE.rot+d+360)%360;PE.crop=null;peDraw();};
+window.peReset=()=>{if(!PE)return;PE.rot=0;PE.crop=null;peDraw();};
+window.peClose=()=>{
+  const ctx=PE;PE=null;closeModal();
+  if(ctx)({pen:openPen,ink:openInk,paper:openPaper})[ctx.type](ctx.id);
+};
+window.peSave=async()=>{
+  if(!PE)return;
+  const btn=$("#pe-save");btn.disabled=true;btn.innerHTML='<span class="spin"></span>Saving…';
+  const {w,h}=peDims();
+  const c=PE.crop||{x:0,y:0,w,h};
+  // clean rotated base (no overlay), then cut the crop from it
+  const base=document.createElement("canvas");base.width=w;base.height=h;
+  peDrawBase(base.getContext("2d"),w,h);
+  const out=document.createElement("canvas");
+  out.width=Math.max(1,Math.round(c.w));out.height=Math.max(1,Math.round(c.h));
+  out.getContext("2d").drawImage(base,c.x,c.y,c.w,c.h,0,0,out.width,out.height);
+  const dataUrl=out.toDataURL("image/jpeg",0.92);
+  try{
+    const r=await fetch("/api/replace-photo",{method:"POST",headers:apiHeaders(),
+      body:JSON.stringify({key:PE.type+":"+PE.id,url:PE.url,data:dataUrl.split(",")[1]})});
+    const j=await r.json();
+    if(!j.ok){toast(j.error||"Save failed");btn.disabled=false;btn.textContent="Save";return;}
+    await refreshPhotos();
+    toast("Photo updated",true);
+    peClose();
+    render();
+  }catch(e){toast("Save failed");btn.disabled=false;btn.textContent="Save";}
+};
+window.aiFindPhotos=async(type,id)=>{
+  const rec=ENT[type].list().find(x=>x.id===id);if(!rec)return;
+  const box=$("#ai-photo-results");if(!box)return;
+  box.innerHTML=`<div class="muted" style="margin-top:10px"><span class="spin"></span>Searching retailer &amp; review pages for photos… (~15s)</div>`;
+  const payload=type==="pen"?{kind:"pen",make:rec.make,model:rec.model}:{kind:type,brand:rec.brand,name:rec.name};
+  try{
+    const r=await fetch("/api/find-photos",{method:"POST",headers:apiHeaders(),body:JSON.stringify(payload)});
+    const j=await r.json();
+    if(!j.ok){box.innerHTML=`<div class="muted" style="margin-top:10px">${esc(j.error||"AI search failed")}</div>`;return;}
+    const imgs=j.images||[];
+    if(!imgs.length){box.innerHTML=`<div class="muted" style="margin-top:10px">No photos found — try the phone or manual upload.</div>`;return;}
+    box.innerHTML=`<h4 style="color:var(--muted);font-size:12px;letter-spacing:.5px;margin:16px 0 6px">SUGGESTED PHOTOS — click one to add</h4>
+      <div class="gallery">${imgs.map(u=>`<div class="gphoto" data-url="${esc(u)}" title="Click to add" onclick="importAiPhoto('${type}','${id}',this)">
+        <img src="${esc(u)}" alt="Suggested photo of ${esc(ENT[type].label(rec))}" onerror="this.parentElement.style.opacity=.25;this.parentElement.title='Image could not load'"></div>`).join("")}</div>
+      <div class="muted" style="margin-top:6px">Each photo downloads into your library when you click it.</div>`;
+  }catch(e){box.innerHTML=`<div class="muted" style="margin-top:10px">AI request error</div>`;}
+};
+window.importAiPhoto=async(type,id,el)=>{
+  const url=el.dataset.url;if(!url||el.dataset.busy)return;el.dataset.busy="1";el.style.opacity=.5;
+  const badge=document.createElement("div");badge.className="badge";badge.style.cssText="position:absolute;top:5px;right:5px;background:rgba(0,0,0,.6);border-radius:6px;padding:2px 7px";badge.textContent="…";el.appendChild(badge);
+  try{
+    const r=await fetch("/api/import-image",{method:"POST",headers:apiHeaders(),body:JSON.stringify({type,id,url})});
+    const j=await r.json();
+    if(j.ok){el.remove();await refreshPhotos();renderGallery(type,id);render();toast("Photo added");}
+    else{badge.textContent="✗";el.style.opacity=1;el.dataset.busy="";el.title=j.error||"Could not fetch this image";}
+  }catch(e){badge.textContent="✗";el.style.opacity=1;el.dataset.busy="";}
+};
+window.cycleTag=async(type,id,url,cur)=>{
+  const next=TAG_ORDER[(TAG_ORDER.indexOf(cur)+1)%TAG_ORDER.length];
+  await fetch("/api/set-photo-tag",{method:"POST",headers:apiHeaders(),
+    body:JSON.stringify({key:type+":"+id,url,tag:next})});
+  await refreshPhotos();renderGallery(type,id);
+};
+window.openPen=id=>{const p=S.pens.find(x=>x.id===id);if(!p)return;modal(detailSheet("pen",p,PEN_DEF));renderGallery("pen",id);renderPairings("pen",p);renderJournalBox("pen",id);};
+window.openInk=id=>{const i=S.inks.find(x=>x.id===id);if(!i)return;modal(detailSheet("ink",i,INK_DEF));renderGallery("ink",id);renderPairings("ink",i);renderJournalBox("ink",id);};
+window.openPaper=id=>{const p=S.papers.find(x=>x.id===id);if(!p)return;modal(detailSheet("paper",p,PAPER_DEF));renderGallery("paper",id);renderPairings("paper",p);renderJournalBox("paper",id);};
+window.saveRec=async(kind,id)=>{
+  const e=ENT[kind];
+  const rec=e.list().find(x=>x.id===id);if(!rec)return;
+  Object.assign(rec,collectFields($("#editF"),e.def()));
+  await e.save();
+  closeModal();render();toast("Saved",true);
+};
+window.deleteRec=async(kind,id)=>{
+  if(!confirm("Delete this entry?"))return;
+  const e=ENT[kind];
+  const idx=e.list().findIndex(x=>x.id===id);
+  if(idx>=0) e.list().splice(idx,1);
+  await e.save();
+  // Photos are server-owned and keyed by type:id, so they outlive the record
+  // unless we clear them here — otherwise photos.json accrues orphans.
+  for(const p of photosFor(kind,id).slice()){
+    try{ await fetch("/api/delete-photo",{method:"POST",headers:apiHeaders(),
+      body:JSON.stringify({key:kind+":"+id,url:photoUrl(p)})}); }catch(err){}
+  }
+  await refreshPhotos();
+  closeModal();render();toast("Deleted");
+};
+window.delPhoto=async(type,id,url)=>{
+  await fetch("/api/delete-photo",{method:"POST",headers:apiHeaders(),
+    body:JSON.stringify({key:type+":"+id,url})});
+  await refreshPhotos();renderGallery(type,id);render();
+};
+window.localUpload=async(type,id,input)=>{
+  for(const f of [...input.files]){
+    const dataUrl=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(f);});
+    await fetch("/api/upload-photo",{method:"POST",headers:apiHeaders(),
+      body:JSON.stringify({type,id,filename:f.name,data:dataUrl.split(",")[1]})});
+  }
+  input.value="";await refreshPhotos();renderGallery(type,id);render();toast("Photo added");
+};
+window.lightbox=u=>{const lb=$("#lightbox");lb.innerHTML=`<img src="${esc(u)}" alt="">`;lb.classList.remove("hidden");
+  lb.onclick=()=>lb.classList.add("hidden");};
+
+/* ============================ mobile drawer + app QR ============================ */
+window.toggleSide=(force)=>{
+  const side=$("#side");
+  const open = force!==undefined ? force : !side.classList.contains("open");
+  side.classList.toggle("open",open);
+  $("#backdrop").classList.toggle("hidden",!open);
+};
+window.openAppQR=async()=>{
+  const info=await (await fetch("/api/qr-info")).json();
+  const url=info.lan_url+"/";
+  modal(`<div class="sheet" style="max-width:440px"><div class="head"><h2>📱 Use on your phone</h2>
+    <button class="x" aria-label="Close" onclick="closeModal()">✕</button></div>
+    <div class="body"><div id="qrbox">
+      <div id="qrcanvas"></div>
+      <div>Scan to open the full tracker on your phone (same Wi-Fi). Browse, edit, and take
+      photos directly from any pen or ink — the camera opens right from the photo gallery.</div>
+      <div class="kv"><span>${esc(url)}</span></div>
+    </div></div></div>`);
+  try{
+    const qr=qrcode(0,"M");qr.addData(url);qr.make();
+    $("#qrcanvas").innerHTML=qr.createImgTag(6,8);
+  }catch(e){ $("#qrcanvas").innerHTML="<div style='color:#900;padding:20px'>QR error</div>"; }
+};
+
+/* ============================ QR hand-off ============================ */
+let qrPoll=null;
+window.openQR=async(type,id)=>{
+  const info=await (await fetch("/api/qr-info")).json();
+  const rec=ENT[type].list().find(x=>x.id===id);if(!rec)return;
+  const label=ENT[type].label(rec);
+  const url=`${info.lan_url}/m?type=${type}&id=${id}&token=${encodeURIComponent(info.token)}&label=${encodeURIComponent(label)}`;
+  modal(`<div class="sheet" style="max-width:440px"><div class="head"><h2>📱 Add photo from phone</h2>
+    <button class="x" aria-label="Close" onclick="closeQR()">✕</button></div>
+    <div class="body"><div id="qrbox">
+      <div id="qrcanvas"></div>
+      <div>Scan with your iPhone camera. Photos you take upload straight here — watch this window.</div>
+      <div class="kv"><span>Same Wi-Fi required</span><span><a href="${esc(url)}" target="_blank">open link</a></span></div>
+      <div id="qrcount" class="muted"></div>
+    </div></div></div>`);
+  try{
+    const qr=qrcode(0,"M");qr.addData(url);qr.make();
+    $("#qrcanvas").innerHTML=qr.createImgTag(6,8);
+  }catch(e){ $("#qrcanvas").innerHTML="<div style='color:#900;padding:20px'>QR error</div>"; }
+  const baseN=photosFor(type,id).length;
+  $("#qrcount").textContent=`${baseN} photo${baseN===1?"":"s"} so far`;
+  clearInterval(qrPoll);
+  qrPoll=setInterval(async()=>{
+    await refreshPhotos();
+    const n=photosFor(type,id).length;
+    $("#qrcount").textContent=`${n} photo${n===1?"":"s"} so far`+(n>baseN?" ✓":"");
+  },2500);
+};
+window.closeQR=()=>{clearInterval(qrPoll);qrPoll=null;closeModal();
+  // refresh whatever detail view might be underneath
+  render();};
+
+/* ============================ add wizard ============================ */
+/* ---------- reference catalog: seed feeds + learned (AI fills) + owned ---------- */
+let CATALOG=null;      // merged {ink,pen,paper} arrays; invalidated after every save
+let SEED=null;          // ink_catalog.json — only cached once it actually loads
+let LEARNED=null;       // catalog_learned.json — same
+async function loadSeed(){
+  if(SEED) return SEED;
+  try{
+    const r=await fetch("ink_catalog.json");
+    if(r.ok){const j=await r.json();SEED={inks:j.inks||[],pens:j.pens||[],papers:j.papers||[]};}
+  }catch(e){ /* leave SEED null so the next Add-sheet open retries instead of caching failure */ }
+  return SEED || {inks:[],pens:[],papers:[]};
+}
+async function loadLearned(){
+  if(LEARNED) return LEARNED;
+  try{
+    const r=await fetch("catalog_learned.json");
+    if(r.ok){const j=await r.json();if(Array.isArray(j))LEARNED=j;}
+  }catch(e){ /* retry next time, same as loadSeed */ }
+  return LEARNED || [];
+}
+async function loadCatalog(){
+  if(CATALOG) return CATALOG;
+  const seed=await loadSeed();
+  const learned=await loadLearned();
+  const mk=()=>new Map();
+  const maps={ink:mk(),pen:mk(),paper:mk()};
+  const put=(kind,a,b,e)=>{if(a&&b)maps[kind].set(String(a).toLowerCase()+"|"+String(b).toLowerCase(),e);};
+  seed.inks.forEach(e=>put("ink",e.brand,e.name,e));
+  seed.pens.forEach(e=>put("pen",e.make,e.model,e));
+  seed.papers.forEach(e=>put("paper",e.brand,e.name,e));
+  // learned entries carry researched attributes — they win over seed
+  learned.forEach(e=>{const k=e.kind||"ink";
+    put(k, k==="pen"?e.make:e.brand, k==="pen"?e.model:e.name, e);});
+  S.inks.forEach(i=>put("ink",i.brand,i.name,{brand:i.brand,name:i.name,
+    color_match:i.color_match,sheen:i.sheen,shimmer:i.shimmer,shading:i.shading}));
+  S.pens.forEach(p=>put("pen",p.make,p.model,{make:p.make,model:p.model,
+    colors:p.material_color?[p.material_color]:[],filling:p.filling,year_or_era:p.year}));
+  S.papers.forEach(p=>put("paper",p.brand,p.name,{brand:p.brand,name:p.name,
+    type:p.type,size:p.size,gsm:p.gsm,ruling:p.ruling,surface:p.surface}));
+  CATALOG={ink:[...maps.ink.values()],pen:[...maps.pen.values()],paper:[...maps.paper.values()]};
+  return CATALOG;
+}
+async function setupAutocomplete(kind){
+  const cat=await loadCatalog();
+  const list=cat[kind]||[];
+  const sheet=document.querySelector(".sheet");
+  if(!sheet||!$("#seedA")||!list.length) return;
+  const A=e=>kind==="pen"?e.make:e.brand, B=e=>kind==="pen"?e.model:e.name;
+  const dlB=document.createElement("datalist");dlB.id="dl-brand";
+  const dlN=document.createElement("datalist");dlN.id="dl-name";
+  sheet.appendChild(dlB);sheet.appendChild(dlN);
+  $("#seedA").setAttribute("list","dl-brand");
+  $("#seedB").setAttribute("list","dl-name");
+  dlB.innerHTML=[...new Set(list.map(A))].sort((a,b)=>a.localeCompare(b))
+    .map(b=>`<option value="${esc(b)}">`).join("");
+  const refreshNames=()=>{
+    const b=$("#seedA").value.trim().toLowerCase();
+    let l=b?list.filter(e=>A(e).toLowerCase()===b):[];
+    if(!l.length&&b.length>=3) l=list.filter(e=>A(e).toLowerCase().startsWith(b));
+    dlN.innerHTML=l.slice(0,300).map(e=>`<option value="${esc(B(e))}">`).join("");
+  };
+  // Only fills EMPTY fields — never overwrites something the user already typed.
+  const set=(k,v)=>{const el=document.querySelector(`#addF [data-k="${k}"]`);
+    if(el&&v!=null&&v!==""&&!el.value)el.value=String(v);};
+  const tryMatch=()=>{
+    const b=$("#seedA").value.trim().toLowerCase(), n=$("#seedB").value.trim().toLowerCase();
+    if(!b||!n) return;
+    const e=list.find(x=>A(x).toLowerCase()===b&&String(B(x)).toLowerCase()===n);
+    if(!e) return;
+    let note="Matched in catalog — fields prefilled. ✨ AI fill adds the rest.";
+    if(kind==="ink"){
+      set("color_match",e.color_match||e.color);
+      set("sheen",e.sheen);set("shading",e.shading);
+      set("alkaline",e.alkaline);
+      if(e.shimmer!=null)set("shimmer",String(e.shimmer===true||e.shimmer==="true"));
+    }else if(kind==="pen"){
+      set("filling",e.filling);set("year",e.year_or_era);
+      set("nib_material",e.nib_material);
+      const colors=(e.colors||[]).filter(Boolean);
+      if(colors.length===1){
+        set("material_color",colors[0]);
+      }else if(colors.length>1){
+        // Multiple known colorways — don't force a dropdown over what the user
+        // is typing; just say how many are on file.
+        note=`Matched in catalog (${colors.length} known colorways — type your own or see notes). ✨ AI fill adds the rest.`;
+      }
+    }else{
+      set("type",e.type);set("size",e.size);set("gsm",e.gsm);
+      set("ruling",e.ruling);set("surface",e.surface);
+    }
+    $("#aiStat").textContent=note;
+  };
+  $("#seedA").addEventListener("input",refreshNames);
+  $("#seedA").addEventListener("change",()=>{refreshNames();tryMatch();});
+  $("#seedB").addEventListener("input",tryMatch);
+  $("#seedB").addEventListener("change",tryMatch);
+  refreshNames();
+}
+
+$("#addBtn").onclick=()=>openAdd(defaultAddKind());
+function defaultAddKind(){
+  return (S.view==="collection" && S.kind!=="all") ? S.kind : "pen";
+}
+function kindSwitchHTML(active){
+  const opts=[["pen","Pen"],["ink","Ink"],["paper","Paper"]];
+  return `<div style="display:flex;gap:6px;margin-bottom:16px">${opts.map(([k,lab])=>
+    `<button class="chip ${active===k?"on":""}" onclick="openAdd('${k}')">${lab}</button>`).join("")}</div>`;
+}
+// Pens get the new paste-a-link Capture flow; inks/papers keep the seed +
+// AI-fill flow (there's no marketplace URL to parse for those yet).
+function openAdd(kind){
+  if(kind==="pen") return openCapture();
+  return openAddManual(kind);
+}
+function openAddManual(kind){
+  const def=ENT[kind].def();
+  const idHint=ENT[kind].seeds.map(([k,lab,ph],i)=>
+    `<div class="field"><label>${lab}</label><input id="seed${i?"B":"A"}" placeholder="${ph}"></div>`).join("");
+  modal(`<div class="sheet wide"><div class="head"><h2>Add ${kind}</h2><button class="x" aria-label="Close" onclick="closeModal()">✕</button></div>
+    <div class="body">
+      ${kindSwitchHTML(kind)}
+      <div class="fields">${idHint}</div>
+      <div style="margin:14px 0"><button class="btn" id="aiBtn">✨ Auto-fill with AI</button>
+        <span id="aiStat" class="muted" style="margin-left:10px"></span></div>
+      <div class="fields" id="addF">${def.map(d=>fieldInput(d,"")).join("")}</div>
+      <div id="aiImages"></div>
+    </div>
+    <div class="foot"><button class="btn sec" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="saveNew">Save</button></div></div>`);
+  // sync seed -> fields
+  const syncSeed=()=>{
+    const [ka,kb]=ENT[kind].seeds.map(s=>s[0]);
+    setField(ka,$("#seedA").value);setField(kb,$("#seedB").value);
+  };
+  $("#seedA").oninput=syncSeed;$("#seedB").oninput=syncSeed;
+  $("#aiBtn").onclick=()=>runAI(kind);
+  $("#saveNew").onclick=()=>saveNew(kind);
+  setupAutocomplete(kind);
+}
+function setField(k,v){const el=document.querySelector(`#addF [data-k="${k}"]`);if(el&&v!=null&&v!=="")el.value=v;}
+async function runAI(kind){
+  const stat=$("#aiStat");const btn=$("#aiBtn");
+  const a=$("#seedA").value.trim(),b=$("#seedB").value.trim();
+  if(!a&&!b){stat.textContent="Enter a name first.";return;}
+  btn.disabled=true;stat.innerHTML='<span class="spin"></span>Researching — usually 10–20s…';
+  const payload=kind==="pen"?{kind:"pen",make:a,model:b}:{kind,brand:a,name:b};
+  try{
+    const r=await fetch("/api/ai-fill",{method:"POST",headers:apiHeaders(),body:JSON.stringify(payload)});
+    const j=await r.json();
+    if(!j.ok){stat.textContent=j.error||"AI fill failed";btn.disabled=false;return;}
+    const f=j.fields||{};
+    Object.entries(f).forEach(([k,v])=>{
+      if(v==null)return;
+      if(k==="shimmer"){const el=document.querySelector(`#addF [data-k="shimmer"]`);if(el)el.value=String(!!v);return;}
+      if(k==="msrp_usd"){setField("est_value",v);return;}
+      if(k==="year_or_era"){setField("year",v);return;}
+      setField(k,v);
+    });
+    stat.textContent=`Filled (confidence: ${j.confidence||"?"}). Review & edit, then Save.`;
+    renderAIImages(j.images||[], `${a} ${b}`.trim());
+  }catch(e){stat.textContent="AI request error";}
+  btn.disabled=false;
+}
+let pendingImages=[];
+function renderAIImages(imgs, label){
+  pendingImages=[];
+  const box=$("#aiImages");
+  if(!imgs.length){box.innerHTML="";return;}
+  box.innerHTML=`<h4 style="color:var(--muted);font-size:12px;letter-spacing:.5px;margin:18px 0 6px">SUGGESTED PHOTOS — click to keep</h4>
+    <div class="gallery">${imgs.map((u,i)=>`<div class="gphoto" data-i="${i}" data-url="${esc(u)}" onclick="toggleImg(${i})" style="outline:2px solid transparent">
+      <img src="${esc(u)}" alt="Suggested photo of ${esc(label||"")}" onerror="this.parentElement.style.opacity=.3">
+    </div>`).join("")}</div>
+    <div class="muted" style="margin-top:6px">Kept photos download to your library when you Save.</div>`;
+}
+window.toggleImg=i=>{
+  const el=document.querySelector(`#aiImages [data-i="${i}"]`);
+  const url=el.dataset.url;
+  if(pendingImages.includes(url)){pendingImages=pendingImages.filter(u=>u!==url);el.style.outline="2px solid transparent";}
+  else{pendingImages.push(url);el.style.outline="2px solid var(--accent)";}
+};
+async function saveNew(kind){
+  const e=ENT[kind];
+  const rec=collectFields($("#addF"),e.def());
+  rec.id=uid();rec.photos=[];rec.added_at=new Date().toISOString();
+  e.list().push(rec);await e.save();
+  CATALOG=null;  // fold the new record into future suggestions
+  // import any kept AI images server-side
+  for(const url of pendingImages){
+    try{await fetch("/api/import-image",{method:"POST",headers:apiHeaders(),
+      body:JSON.stringify({type:kind,id:rec.id,url})});}catch(err){}
+  }
+  pendingImages=[];
+  await refreshPhotos();
+  closeModal();render();toast("Added — open it to add more photos",true);
+}
+
+/* ============================ capture flow (Add a pen) ============================
+   POST /api/capture-url {url} -> {ok,source,multi,items:[{title,price,nib,blurb}],
+   fields:{make,model,material_color,nib_grind,nib_material,filling,paid,seller,
+   source,notes},photos:[...]}. Another agent owns that endpoint; this degrades to
+   the manual + AI-fill flow above on a 404, a network error, or {ok:false}. */
+let CAP={};
+function openCapture(){
+  CAP={values:{},src:{},photos:[],items:null,multi:false,selected:0,excluded:new Set(),serverFields:{}};
+  modal(captureHTML());
+  const inp=document.getElementById("capUrl");
+  if(inp){ inp.focus(); inp.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();runCapture();}}); }
+}
+function captureHTML(){
+  return `<div class="sheet wide"><div class="head"><h2>Add a pen</h2><button class="x" aria-label="Close" onclick="closeModal()">✕</button></div>
+    <div class="body">
+      ${kindSwitchHTML("pen")}
+      <div class="subline" style="margin:-8px 0 14px">Paste where you bought it and the rest fills itself in. Correct anything that looks wrong.</div>
+      <div class="cap-input">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linecap="round" style="width:19px;height:19px;flex:none"><path d="M10 13.8a4.5 4.5 0 0 0 6.5.4l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.7 1.7"/><path d="M14 10.2a4.5 4.5 0 0 0-6.5-.4l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.7-1.7"/></svg>
+        <input id="capUrl" placeholder="Paste a link — or paste the listing text itself">
+        <button class="btn" id="capGo" onclick="runCapture()">Read it</button>
+      </div>
+      <textarea id="capText" class="cap-text hidden" rows="9"
+        placeholder="Paste the whole post here — title and body. Multi-pen listings are fine; you'll pick yours next."></textarea>
+      <div class="cap-reads">
+        <span class="lbl2">Reads</span>
+        <span class="pill">eBay listings</span>
+        <span class="pill">Goulet, Vanness, FPH, Cult Pens</span>
+        <span class="pill" style="color:var(--muted)">most other shop pages</span>
+        <span class="pill">r/Pen_Swap (paste the text)</span>
+        <span class="pill">pasted text from anywhere</span>
+      </div>
+      <div style="margin-top:8px;font-size:12.5px;color:var(--muted)">
+        Reddit blocks direct reads of posts from any app — there is no way around that.
+        For r/Pen_Swap: open the post, select all its text, and
+        <a href="#" onclick="event.preventDefault();capPasteMode()">paste it here</a> instead of the link.
+      </div>
+      <div style="margin-top:12px"><a href="#" onclick="event.preventDefault();openAddManual('pen')" style="font-size:12.5px">Skip — enter it by hand</a></div>
+      <div id="capBody"></div>
+    </div>
+    <div class="foot"><button class="btn sec" onclick="closeModal()">Cancel</button></div></div>`;
+}
+// Reveal the paste box. Reddit's API is closed to new apps and its site
+// blocks server-side reads, so pasting the post text is the only path that
+// works — not a fallback, the normal route for Reddit.
+window.capPasteMode=(focus=true)=>{
+  const ta=$("#capText"); if(!ta) return;
+  ta.classList.remove("hidden");
+  if(focus) ta.focus();
+};
+async function runCapture(){
+  const inp=document.getElementById("capUrl"), ta=document.getElementById("capText");
+  const url=(inp?inp.value:"").trim();
+  const pasted=(ta&&!ta.classList.contains("hidden")?ta.value:"").trim();
+  // A blob of text in the link box is text, not a URL — treat it as such.
+  const looksLikeUrl = /^(https?:\/\/|www\.)\S+$/i.test(url);
+  const text = pasted || (url && !looksLikeUrl ? url : "");
+  if(!text && !url){toast("Paste a link or the listing text");return;}
+  const btn=$("#capGo"), body=$("#capBody");
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>Reading…';
+  body.innerHTML="";
+  try{
+    const payload = text ? {text} : {url};
+    const r=await fetch("/api/capture-url",{method:"POST",headers:apiHeaders(),body:JSON.stringify(payload)});
+    if(r.status===404){ throw {unavailable:true}; }
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error||"Could not read that page");
+    CAP.items=j.items||[]; CAP.multi=!!j.multi; CAP.photos=j.photos||[];
+    CAP.serverFields=j.fields||{}; CAP.excluded=new Set();
+    // The server points at the lot most likely to be the one you bought — when
+    // exactly one pen in the post is marked SOLD, that's it. Start there.
+    CAP.selected=Math.min(Math.max(0, j.suggested|0), Math.max(0, CAP.items.length-1));
+    await applyCaptureFields(CAP.selected);
+    renderCaptureBody();
+  }catch(e){
+    if(e&&e.unavailable){
+      toast("Paste capture isn't set up yet — filling in by hand");
+      openAddManual("pen");
+    }else{
+      const msg=esc(e&&e.message||"Could not read that page");
+      const blocked=/bot check|cannot read the post|closed to new registrations|403/i.test(msg);
+      if(blocked) capPasteMode(true);
+      body.innerHTML=`<div class="muted" style="margin-top:14px">${msg}${blocked?"":` —
+        try again, or <a href="#" onclick="event.preventDefault();openAddManual('pen')">enter it by hand</a>.`}</div>`;
+    }
+  }
+  if(btn){btn.disabled=false;btn.textContent="Fetch";}
+}
+async function applyCaptureFields(itemIdx){
+  const sf=CAP.serverFields||{}, src={}, val={};
+  const set=(k,v,s)=>{ if(v!=null&&v!==""){ val[k]=v; src[k]=s; } };
+  if(itemIdx===0){
+    set("make",sf.make,"post"); set("model",sf.model,"post");
+    set("material_color",sf.material_color,"post");
+    set("nib_grind",sf.nib_grind,"post"); set("nib_material",sf.nib_material,"post");
+    set("filling",sf.filling,"post"); set("seller",sf.seller,"post"); set("notes",sf.notes,"post");
+    if(sf.paid!=null){ val.paid=sf.paid; src.paid="askprice"; }
+    if(sf.source){ val.source=sf.source; src.source="post"; }
+  }
+  const it=CAP.items&&CAP.items[itemIdx];
+  if(it){
+    if(itemIdx>0){
+      const parts=String(it.title||"").trim().split(/\s+/).filter(Boolean);
+      if(parts.length){ val.make=parts[0]; src.make="post";
+        if(parts.length>1){ val.model=parts.slice(1).join(" "); src.model="post"; } }
+    }
+    if(it.price!=null){ val.paid=it.price; src.paid="askprice"; }
+    if(it.nib){ val.nib_grind=it.nib; src.nib_grind="post"; }
+    if(it.blurb && !val.notes){ val.notes=it.blurb; src.notes="post"; }
+  }
+  try{
+    const cat=await loadCatalog(); const list=cat.pen||[];
+    const m=String(val.make||"").toLowerCase(), md=String(val.model||"").toLowerCase();
+    const hit=m&&md&&list.find(e=>String(e.make||"").toLowerCase()===m && String(e.model||"").toLowerCase()===md);
+    if(hit){
+      if(!val.filling && hit.filling){ val.filling=hit.filling; src.filling="catalog"; }
+      if(!val.nib_material && hit.nib_material){ val.nib_material=hit.nib_material; src.nib_material="catalog"; }
+    }
+  }catch(e){ /* catalog is a nice-to-have; capture still works without it */ }
+  val.status="Keep"; src.status="usual";
+  CAP.values=val; CAP.src=src;
+}
+window.selectCaptureItem=async(i)=>{ CAP.selected=i; await applyCaptureFields(i); renderCaptureBody(); };
+window.toggleCapPhoto=(i)=>{ CAP.excluded.has(i)?CAP.excluded.delete(i):CAP.excluded.add(i); renderCaptureBody(); };
+function renderCaptureBody(){
+  const box=$("#capBody"); let h="";
+  if(CAP.multi && CAP.items && CAP.items.length>1){
+    h+=`<div class="cap-multi">
+      <h4>This post sells ${CAP.items.length} pens. Pick the one you bought.</h4>
+      <div class="subline" style="margin-top:4px;max-width:none">On a multi-pen listing the price, the nib and the condition notes belong to different pens — choose below, or add them all at once.</div>
+      <div class="cap-lots">${CAP.items.map((it,i)=>`<div class="cap-lot ${i===CAP.selected?"on":""} ${it.sold?"sold":""}" onclick="selectCaptureItem(${i})">
+        <div style="font-family:var(--serif);font-weight:700;font-size:13px">${esc(it.title||"Pen "+(i+1))}
+          ${it.sold?`<span class="soldtag">Sold</span>`:""}</div>
+        <div class="muted" style="font-size:12px;margin-top:4px">${esc([it.price!=null?money(it.price):"",it.nib].filter(Boolean).join(" · "))}</div>
+      </div>`).join("")}</div>
+      <div style="display:flex;align-items:center;gap:13px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn sec" onclick="addAllCaptureItems()">Add all ${CAP.items.length}</button>
+        <span class="muted" style="font-size:12px">Check the price against what you actually paid — lot posts often discount the bundle.</span>
+      </div>
+    </div>`;
+  }
+  const needsCount = CAP.values.fits_hand ? 0 : 1;
+  h+=`<div class="cap-confirm" style="margin-top:14px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="var(--good)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;flex:none"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+    Filled from the post and the catalogue.${needsCount?` ${needsCount} field needs you.`:""}
+  </div>`;
+  h+=captureDraftHTML();
+  h+=`<div style="display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap">
+    <button class="btn" onclick="saveCaptured()">Add to collection</button>
+    <button class="btn sec" onclick="saveCaptured(true)">Add and photograph</button>
+    <span style="flex:1"></span>
+    <span class="muted" style="font-size:12.5px">Nothing is saved until you say so.</span>
+  </div>`;
+  box.innerHTML=h;
+}
+function captureDraftHTML(){
+  const v=CAP.values||{}, s=CAP.src||{};
+  const srcLine=(k)=>{
+    if(k==="fits_hand") return `<span class="cap-src needs"><i></i>needs you</span>`;
+    if(k==="paid") return s.paid==="askprice"
+      ? `<span class="cap-src needs">asking price — confirm what you paid</span>`
+      : (s.paid==="post"?`<span class="cap-src post"><i></i>from the post</span>`:"");
+    if(k==="est_value") return `<span class="cap-src">only matters if you sell it</span>`;
+    if(s[k]==="post") return `<span class="cap-src post"><i></i>from the post</span>`;
+    if(s[k]==="catalog") return `<span class="cap-src"><i></i>catalogue</span>`;
+    if(s[k]==="usual") return `<span class="cap-src"><i></i>your usual</span>`;
+    return "";
+  };
+  const field=(k,label,opts)=>{
+    opts=opts||{};
+    const needs=k==="fits_hand";
+    let inner;
+    if(opts.select) inner=`<select class="cap-fval ${needs?"needs":""}" data-k="${k}">${opts.select.map(o=>
+      `<option value="${esc(o)}" ${String(v[k]||"")===o?"selected":""}>${o||"—"}</option>`).join("")}</select>`;
+    else if(opts.textarea) inner=`<textarea class="cap-fval" data-k="${k}" style="min-height:56px">${esc(v[k]||"")}</textarea>`;
+    else inner=`<input class="cap-fval ${needs?"needs":""}" data-k="${k}" placeholder="${esc(opts.placeholder||"")}" value="${esc(v[k]??"")}">`;
+    return `<div class="cap-field ${opts.full?"full":""}">
+      <span class="cap-fname" ${needs?'style="color:var(--warn)"':""}>${label}</span>
+      ${inner}
+      ${srcLine(k)}
+    </div>`;
+  };
+  const photoNote = CAP.photos.length
+    ? `<div class="muted" style="font-size:11px;margin-bottom:6px">${CAP.photos.length} photo${CAP.photos.length===1?"":"s"} found — click to drop any you don't want</div>
+       <div class="gallery" style="grid-template-columns:repeat(auto-fill,minmax(52px,1fr))">${CAP.photos.map((u,i)=>{
+         const excl=CAP.excluded.has(i);
+         return `<div class="gphoto" onclick="toggleCapPhoto(${i})" style="outline:2px solid ${excl?"transparent":"var(--accent)"};opacity:${excl?.4:1};cursor:pointer">
+           <img src="${esc(u)}" alt="" onerror="this.parentElement.style.display='none'"></div>`;
+       }).join("")}</div>`
+    : "";
+  return `<div class="cap-draft">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="aspect-ratio:3/2;background:var(--sunken);border-radius:9px;display:grid;place-items:center;overflow:hidden">
+        ${penSil({material_color:v.material_color,nib_material:v.nib_material})}
+      </div>
+      ${photoNote}
+    </div>
+    <div class="cap-fgrid">
+      ${field("make","Make")}
+      ${field("model","Model")}
+      ${field("paid","Paid")}
+      ${field("material_color","Material &amp; colour",{full:true})}
+      ${field("filling","Filling system")}
+      ${field("nib_grind","Nib grind")}
+      ${field("nib_material","Nib material")}
+      ${field("seller","Bought from")}
+      ${field("fits_hand","Fits your hand",{select:["","Yes","No"]})}
+      ${field("status","Status",{select:STATUS})}
+      ${field("est_value","Asking reference",{placeholder:"optional"})}
+      ${field("notes","Working notes",{full:true,textarea:true})}
+    </div>
+  </div>`;
+}
+window.addAllCaptureItems=async()=>{
+  if(!CAP.items) return;
+  const sf=CAP.serverFields||{};
+  CAP.items.forEach((it,i)=>{
+    const parts=String(it.title||"").trim().split(/\s+/).filter(Boolean);
+    S.pens.push({
+      id:uid(), photos:[], added_at:new Date().toISOString(),
+      make: i===0&&sf.make ? sf.make : (parts[0]||""),
+      model: i===0&&sf.model ? sf.model : parts.slice(1).join(" "),
+      material_color: i===0?(sf.material_color||""):"",
+      nib_grind: it.nib || (i===0?sf.nib_grind:"") || "",
+      nib_material: i===0?(sf.nib_material||""):"",
+      nibmeister:"", filling: i===0?(sf.filling||""):"",
+      paid: it.price!=null ? it.price : (i===0&&sf.paid!=null?sf.paid:null),
+      est_value:null, status:"Keep", date_acquired:"",
+      source: i===0?(sf.source||""):"", seller: i===0?(sf.seller||""):"",
+      weight:"", fits_hand:"", year:"",
+      inked_with:"", inked_date:"", last_cleaned:"",
+      notes: it.blurb || (i===0?(sf.notes||""):""),
+    });
+  });
+  await savePens(); CATALOG=null;
+  const n=CAP.items.length;
+  closeModal(); render(); toast(`Added ${n} pen${n===1?"":"s"} — open each to fill in the rest`,true);
+};
+window.saveCaptured=async(andPhotograph)=>{
+  const grid=document.querySelector("#capBody .cap-fgrid");
+  const v={}; if(grid) grid.querySelectorAll("[data-k]").forEach(el=>{ v[el.dataset.k]=el.value; });
+  const numOf=s=>{ s=String(s??"").replace(/[^0-9.\-]/g,""); return s===""?null:Number(s); };
+  const rec={
+    id:uid(), photos:[], added_at:new Date().toISOString(),
+    make:v.make||"", model:v.model||"", material_color:v.material_color||"",
+    nib_grind:v.nib_grind||"", nib_material:v.nib_material||"", nibmeister:"",
+    filling:v.filling||"", paid:numOf(v.paid), est_value:numOf(v.est_value),
+    status:v.status||"Keep", date_acquired:"",
+    source:CAP.values.source||"", seller:v.seller||"",
+    weight:"", fits_hand:v.fits_hand||"", year:"",
+    inked_with:"", inked_date:"", last_cleaned:"", notes:v.notes||"",
+  };
+  S.pens.push(rec); await savePens(); CATALOG=null;
+  const keep=(CAP.photos||[]).filter((u,i)=>!CAP.excluded.has(i));
+  for(const url of keep){
+    try{ await fetch("/api/import-image",{method:"POST",headers:apiHeaders(),
+      body:JSON.stringify({type:"pen",id:rec.id,url})}); }catch(e){}
+  }
+  await refreshPhotos();
+  closeModal(); render();
+  if(andPhotograph){ toast("Added — opening for photos",true); openPen(rec.id); }
+  else toast("Added to collection",true);
+};
+
+/* ============================ pairing engine ============================ */
+/* Local rules encoding fountain-pen lore: shimmer→broad modern easy-clean;
+   sheen→wet lines + coated paper; shading→flex/italic + smooth paper;
+   vintage→well-behaved inks. No network needed. */
+function nibProfile(pen){
+  const g=String(pen.nib_grind||"").toLowerCase();
+  const grind=/(stub|italic|\bci\b|bci|mci|uci|\bsig\b|cursive|music|architect|\bcm\b|1\.[0-9])/.test(g);
+  const broad=grind||/\b(bbb|bb|b|broad|zoom)\b/.test(g);
+  const fine=!broad&&/\b(uef|ef|xf|sef|f|fine)\b/.test(g);
+  const medium=!broad&&!fine&&(/\bm\b|medium/.test(g));
+  const flex=/flex/.test(g);
+  return {grind,broad,fine,medium,flex};
+}
+const isVintage=pen=>/vintage/i.test(pen.make||"")
+  ||/19[0-6]\d/.test(String(pen.year||""))
+  ||/lever|button|sac|crescent|leverless|twist|plunger|safety|blow|aerometric|vacumatic|vac\b/i.test(String(pen.filling||""));
+const isEasyClean=pen=>/cartridge|converter|c\/c|eyedropper/i.test(String(pen.filling||""));
+const hasSheen=ink=>ink.sheen&&ink.sheen!=="None";
+const hasShading=ink=>/moderate|strong/i.test(ink.shading||"");
+
+function scoreInkForPen(pen,ink){
+  const p=nibProfile(pen),v=isVintage(pen);
+  let s=0;const why=[],warn=[];
+  if(ink.shimmer){
+    if(v){s-=4;warn.push("shimmer particles can lodge in vintage sacs and feeds");}
+    else{
+      if(p.broad){s+=3;why.push("broad/italic nib lays down enough ink for shimmer to show");}
+      else if(p.fine){s-=3;warn.push("shimmer tends to clog fine nibs");}
+      else {s+=1;why.push("medium line carries some sparkle");}
+      if(isEasyClean(pen)){s+=1;why.push("easy-flush filler");}
+    }
+  }
+  if(ink.alkaline==="Yes"&&v){s-=3;warn.push("alkaline ink — hard on vintage sacs, seals and celluloid");}
+  if(hasSheen(ink)){
+    if(p.broad){s+=2;why.push(`wet, wide line builds the ${String(ink.sheen).toLowerCase()} sheen`);}
+    else if(p.fine){s-=1;why.push("thin lines rarely show sheen");}
+    if(v){s-=1;warn.push("heavily saturated sheen inks can stain vintage material");}
+  }
+  if(hasShading(ink)){
+    if(p.flex){s+=3;why.push("flex line variation shows shading beautifully");}
+    else if(p.grind){s+=2;why.push("stub/italic grind emphasizes shading");}
+    else if(p.medium){s+=1;why.push("medium line shades nicely");}
+  }
+  if(!ink.shimmer&&!hasSheen(ink)&&ink.alkaline!=="Yes"){
+    if(v){s+=2;why.push("well-behaved ink — safe for a vintage filler");}
+    else if(!hasShading(ink)){s+=0.5;why.push("easy everyday pairing");}
+  }
+  return {s,why,warn};
+}
+function scorePaperForInk(ink,paper){
+  let s=0;const why=[],warn=[];
+  const surf=String(paper.surface||"").toLowerCase();
+  if(hasSheen(ink)){
+    if(surf==="coated"){s+=3;why.push("coated paper makes sheen pop");
+      if(paper.gsm&&paper.gsm<=68){s+=1;why.push("thin coated stock is peak sheen");}}
+    if(surf==="absorbent"){s-=3;warn.push("absorbent paper drinks the ink before sheen can form");}
+  }
+  if(ink.shimmer&&(surf==="coated"||surf==="smooth")){s+=1;why.push("particles sit on the surface and sparkle");}
+  if(hasShading(ink)){
+    if(surf==="smooth"){s+=2;why.push("smooth paper lets the ink pool into shading");}
+    else if(surf==="coated"){s+=1;why.push("slow absorption deepens shading");}
+    else if(surf==="absorbent"){s-=1;}
+  }
+  if(/severe/i.test(paper.bleedthrough||"")){s-=2;warn.push("bleeds through with wet inks");}
+  if(String(paper.rating)==="5"){s+=1;why.push("your top-rated paper");}
+  return {s,why,warn};
+}
+function verdict(s){
+  if(s>=3)  return {label:"Great", cls:"b-Keep"};
+  if(s>=1)  return {label:"Good",  cls:"b-Undecided"};
+  if(s<=-2) return {label:"Avoid", cls:"b-WillSell"};
+  return {label:"OK", cls:"b-Sold"};
+}
+function pairRows(items,scoreFn,labelFn,openFn){
+  const scored=items.map(x=>({x,r:scoreFn(x)})).sort((a,b)=>b.r.s-a.r.s);
+  const top=scored.filter(e=>e.r.s>-2).slice(0,4);
+  const avoid=scored.filter(e=>e.r.s<=-2).slice(0,3);
+  const row=e=>{const v=verdict(e.r.s);
+    const note=esc((e.r.s<=-2?e.r.warn[0]:e.r.why[0])||e.r.warn[0]||"");
+    return `<div class="bar" style="cursor:pointer;align-items:flex-start" onclick="${openFn}('${e.x.id}')">
+      <span class="badge ${v.cls}" style="flex:none;margin-top:1px">${v.label}</span>
+      <div style="flex:1;min-width:0"><b>${esc(labelFn(e.x))}</b>
+        ${note?`<div class="muted" style="font-size:12px">${note}</div>`:""}</div></div>`;};
+  return top.map(row).join("")+(avoid.length?`<div class="muted" style="font-size:11px;margin:8px 0 4px;letter-spacing:.4px">STEER CLEAR</div>`+avoid.map(row).join(""):"");
+}
+function renderPairings(kind,rec){
+  const box=$("#pairPanel");if(!box)return;
+  let h="";
+  if(kind==="pen"){
+    h += S.inks.length
+      ? `<div class="muted" style="font-size:11px;margin-bottom:6px;letter-spacing:.4px">INKS FROM YOUR COLLECTION</div>`
+        + pairRows(S.inks,i=>scoreInkForPen(rec,i),i=>ENT.ink.label(i),"openInk")
+      : `<div class="muted" style="font-size:13px">Add inks to your collection to get pairing suggestions here.</div>`;
+  }else if(kind==="ink"){
+    h += S.pens.length
+      ? `<div class="muted" style="font-size:11px;margin-bottom:6px;letter-spacing:.4px">PENS THAT SUIT THIS INK</div>`
+        + pairRows(S.pens.filter(p=>!["Sold","Gift"].includes(p.status)||p.status==="Gift"),p=>scoreInkForPen(p,rec),p=>ENT.pen.label(p),"openPen") : "";
+    h += S.papers.length
+      ? `<div class="muted" style="font-size:11px;margin:12px 0 6px;letter-spacing:.4px">PAPER TO SHOW IT OFF</div>`
+        + pairRows(S.papers,pa=>scorePaperForInk(rec,pa),pa=>ENT.paper.label(pa),"openPaper")
+      : `<div class="muted" style="font-size:13px;margin-top:8px">Add papers to see which will show off sheen or shading.</div>`;
+  }else{
+    h += S.inks.length
+      ? `<div class="muted" style="font-size:11px;margin-bottom:6px;letter-spacing:.4px">INKS THIS PAPER SHOWS OFF</div>`
+        + pairRows(S.inks,i=>scorePaperForInk(i,rec),i=>ENT.ink.label(i),"openInk")
+      : `<div class="muted" style="font-size:13px">Add inks to see what this paper will show off.</div>`;
+  }
+  box.innerHTML=`<h4 style="margin:20px 0 8px;color:var(--muted);font-size:12px;letter-spacing:.5px">🔗 PAIRINGS</h4>
+    ${h}
+    <div style="margin-top:10px"><button class="btn ghost" onclick="aiPairIdeas('${kind}','${rec.id}')">✨ AI pairing ideas</button>
+      <span id="pairAiStat" class="muted" style="margin-left:8px;font-size:12px"></span></div>
+    <div id="pairAiOut"></div>`;
+}
+window.aiPairIdeas=async(kind,id)=>{
+  const rec=ENT[kind].list().find(x=>x.id===id);if(!rec)return;
+  $("#pairAiStat").innerHTML='<span class="spin"></span>Thinking…';
+  const slim={
+    pens:S.pens.filter(p=>p.status!=="Sold").map(p=>({pen:ENT.pen.label(p),nib:p.nib_grind,filling:p.filling,year:p.year})),
+    inks:S.inks.map(i=>({ink:ENT.ink.label(i),shimmer:!!i.shimmer,sheen:i.sheen,shading:i.shading})),
+    papers:S.papers.map(pa=>({paper:ENT.paper.label(pa),surface:pa.surface,gsm:pa.gsm})),
+  };
+  try{
+    const r=await fetch("/api/ai-pair",{method:"POST",headers:apiHeaders(),
+      body:JSON.stringify({item:{kind,...rec},...slim})});
+    const j=await r.json();
+    if(!j.ok){$("#pairAiStat").textContent=j.error||"AI pairing failed";return;}
+    $("#pairAiStat").textContent="";
+    $("#pairAiOut").innerHTML=(j.suggestions||[]).map(s=>
+      `<div class="bar" style="align-items:flex-start;margin-top:8px"><span style="flex:none">💡</span>
+        <div style="flex:1;min-width:0"><b>${esc(s.combo)}</b>
+          <div class="muted" style="font-size:12px">${esc(s.why||"")}</div></div></div>`).join("");
+  }catch(e){$("#pairAiStat").textContent="AI request error";}
+};
+
+/* ============================ data hub: import / export ============================ */
+window.openData=()=>{
+  modal(`<div class="sheet"><div class="head"><h2>⇄ Import / Export</h2><button class="x" aria-label="Close" onclick="closeModal()">✕</button></div>
+  <div class="body">
+    <h4 class="sech">IMPORT FROM A SPREADSHEET</h4>
+    <p class="muted" style="margin:4px 0 10px;font-size:13px">Copy rows straight out of Excel or Google Sheets (header row included) and paste them in —
+      or upload a CSV. Columns are auto-matched and you review everything before it's saved.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn sec" onclick="openImport('pen')">Import pens</button>
+      <button class="btn sec" onclick="openImport('ink')">Import inks</button>
+      <button class="btn sec" onclick="openImport('paper')">Import papers</button>
+    </div>
+    <h4 class="sech" style="margin-top:24px">EXPORT</h4>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn sec" onclick="exportCSV('pen')">Pens CSV</button>
+      <button class="btn sec" onclick="exportCSV('ink')">Inks CSV</button>
+      <button class="btn sec" onclick="exportCSV('paper')">Papers CSV</button>
+      <button class="btn sec" onclick="copyListings()">📋 Sale listings</button>
+    </div>
+    <p class="muted" style="margin-top:8px;font-size:13px">CSV opens in any spreadsheet (works as an insurance/valuation record).
+      Sale listings copies ready-to-post text for every pen marked <b>Listed</b> or <b>Will Sell</b>.</p>
+  </div></div>`);
+};
+
+/* CSV export */
+window.exportCSV=(kind)=>{
+  const def=ENT[kind].def(), rows=ENT[kind].list();
+  const cols=def.map(d=>d[0]);
+  const cell=v=>{v=v==null?"":String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  const csv=[cols.join(",")].concat(rows.map(r=>cols.map(c=>cell(r[c])).join(","))).join("\r\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"}));
+  a.download=`${kind}s_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  URL.revokeObjectURL(a.href);
+  toast(`Exported ${rows.length} ${kind}${rows.length===1?"":"s"}`);
+};
+
+/* sale listings */
+function copyText(t){
+  if(navigator.clipboard&&window.isSecureContext) return navigator.clipboard.writeText(t);
+  const ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);
+  ta.select();document.execCommand("copy");ta.remove();return Promise.resolve();
+}
+function genListing(p){
+  const price=p.est_value!=null&&p.est_value!==""?`$${p.est_value}`:"$___";
+  const l=[`**[WTS] ${p.make} ${p.model}${p.material_color?" — "+p.material_color:""} (${price})**`];
+  if(p.nib_grind||p.nib_material) l.push(`* Nib: ${[p.nib_grind,p.nib_material].filter(Boolean).join(", ")}${p.nibmeister?` — ground by ${p.nibmeister}`:""}`);
+  if(p.filling) l.push(`* Filling: ${p.filling}`);
+  if(p.year) l.push(`* Era: ${p.year}`);
+  if(p.weight) l.push(`* Weight: ${p.weight}`);
+  if(p.notes) l.push(`* Condition / notes: ${p.notes}`);
+  l.push(`* Price: ${price} shipped CONUS, PayPal G&S`);
+  return l.join("\n");
+}
+window.copyOneListing=async(id)=>{
+  const p=S.pens.find(x=>x.id===id);if(!p)return;
+  await copyText(genListing(p));toast("Listing text copied");
+};
+window.copyListings=async()=>{
+  const sel=S.pens.filter(p=>["Listed","Will Sell"].includes(p.status));
+  if(!sel.length){toast("No pens marked Listed or Will Sell");return;}
+  await copyText(sel.map(genListing).join("\n\n---\n\n"));
+  toast(`Copied ${sel.length} listing${sel.length===1?"":"s"} to clipboard`);
+};
+
+/* ---------- import wizard ---------- */
+let IW={};
+const IMPORT_SYNONYMS={
+ pen:{make:["make","brand","manufacturer","maker"],model:["model","pen","penmodel"],
+  material_color:["materialcolor","material","color","colour","finish"],
+  paid:["paid","price","cost","pricepaid","paidusd","purchaseprice"],
+  source:["source","vendor","store","boughtfrom","purchasedfrom","from"],
+  seller:["seller","ebayseller","sellerid","ebayorpenswapseller"],
+  date_acquired:["dateacquired","acquired","purchased","purchasedate","bought","date"],
+  nib_grind:["nibgrind","nib","grind","nibsize","nibwidth"],
+  nib_material:["nibmaterial","nibmetal"],nibmeister:["nibmeister","grinder"],
+  status:["status","disposition"],weight:["weight","weightg","grams"],
+  fits_hand:["fitshand","fits","comfort"],
+  notes:["notes","comments","description","remarks"],
+  est_value:["estvalue","value","estimatedvalue","worth","currentvalue","marketvalue","estvalueprivatemid"],
+  filling:["filling","fillingsystem","filler","fillmechanism","mechanism"],
+  year:["year","era","yearera","vintage"],inked_with:["inkedwith","currentink"]},
+ ink:{brand:["brand","maker","make","manufacturer"],name:["name","ink","inkname"],
+  shimmer:["shimmer","glitter"],sheen:["sheen"],shading:["shading","shade","shader"],alkaline:["alkaline","ph","basic"],
+  color_match:["colormatch","colorfamily","primarycolor","primarycolormatch","family","hue","color","colour"],
+  type:["type","format","bottlesample","container","sampleorbottle"],
+  status:["status","keepdispose"],notes:["notes","comments","description"]},
+ paper:{brand:["brand","maker","manufacturer"],name:["name","product","paper","notebook"],
+  type:["type","format"],size:["size","dimensions"],gsm:["gsm","paperweight","gm2"],
+  ruling:["ruling","lines","pattern"],surface:["surface","coating","finish"],
+  rating:["rating","score","stars"],
+  ghosting:["ghosting"],bleedthrough:["bleedthrough","bleed"],feathering:["feathering","feather"],
+  price:["price","paid","cost"],status:["status"],notes:["notes","comments","description"]},
+};
+function parseTable(text){
+  text=String(text||"").replace(/\r\n?/g,"\n").trim();
+  if(!text)return[];
+  const delim=text.split("\n")[0].includes("\t")?"\t":",";
+  const rows=[];let row=[],cur="",inQ=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(inQ){ if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else inQ=false; } else cur+=ch; }
+    else if(ch==='"') inQ=true;
+    else if(ch===delim){row.push(cur);cur="";}
+    else if(ch==="\n"){row.push(cur);rows.push(row);row=[];cur="";}
+    else cur+=ch;
+  }
+  row.push(cur);
+  if(row.length>1||row[0].trim())rows.push(row);
+  return rows.filter(r=>r.some(c=>String(c).trim()));
+}
+function autoMap(kind,headers){
+  const syn=IMPORT_SYNONYMS[kind],used=new Set();
+  return headers.map(h=>{
+    const n=String(h).toLowerCase().replace(/[^a-z0-9]/g,"");
+    for(const[f,alts]of Object.entries(syn)){
+      if(used.has(f))continue;
+      if(f.replace(/_/g,"")===n||alts.includes(n)){used.add(f);return f;}
+    }
+    for(const[f,alts]of Object.entries(syn)){
+      if(used.has(f))continue;
+      if(n.length>2&&alts.some(a=>n.includes(a)||a.includes(n))){used.add(f);return f;}
+    }
+    return "";
+  });
+}
+function cleanMoneyJS(s){
+  s=String(s??"").trim();if(!s||s==="-"||s==="—")return null;
+  const neg=/^\(.*\)$/.test(s);
+  s=s.replace(/[($),\s]/g,"").replace(/[^0-9.\-]/g,"");
+  if(!s)return null;const v=parseFloat(s);return isNaN(v)?null:(neg?-v:v);
+}
+function cleanDateJS(s){
+  s=String(s??"").trim();if(!s)return"";
+  const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if(m){let y=+m[3];if(y<100)y+=2000;return `${y}-${String(m[1]).padStart(2,"0")}-${String(m[2]).padStart(2,"0")}`;}
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+  return s;
+}
+window.openImport=(kind)=>{
+  const keep=IW.kind===kind;
+  IW={kind,raw:keep?IW.raw||"":"",
+    xlsxFile:keep?IW.xlsxFile||null:null,
+    xlsxRows:keep?IW.xlsxRows||null:null,
+    xlsxSheets:keep?IW.xlsxSheets||null:null,
+    xlsxSheet:keep?IW.xlsxSheet||null:null};
+  modal(`<div class="sheet wide"><div class="head"><h2>Import ${kind}s · 1 of 3 — data</h2><button class="x" aria-label="Close" onclick="closeModal()">✕</button></div>
+  <div class="body">
+    <p class="muted" style="font-size:13px">Copy your rows in Excel / Google Sheets <b>including the header row</b>, then paste below — or choose a CSV or Excel file.</p>
+    <textarea id="iw-paste" class="iw-ta" placeholder="Paste spreadsheet rows here…">${esc(IW.raw)}</textarea>
+    <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <label class="btn sec">Choose CSV or Excel file<input id="iw-file" type="file" accept=".csv,.tsv,.txt,.xlsx" style="display:none"></label>
+      <span id="iw-err" class="muted"></span>
+    </div>
+    <div id="iw-sheet-row" style="display:none;margin-top:8px"></div>
+  </div>
+  <div class="foot"><button class="btn sec" onclick="openData()">← Back</button>
+    <button class="btn" onclick="iwToMap()">Next →</button></div></div>`);
+  $("#iw-file").onchange=e=>{
+    const f=e.target.files[0];if(!f)return;
+    if(/\.xlsx$/i.test(f.name)){
+      IW.xlsxFile=f;IW.xlsxRows=null;IW.xlsxSheets=null;IW.xlsxSheet=null;
+      iwLoadXlsx();
+    } else {
+      IW.xlsxFile=null;IW.xlsxRows=null;IW.xlsxSheets=null;IW.xlsxSheet=null;
+      $("#iw-sheet-row").style.display="none";$("#iw-sheet-row").innerHTML="";
+      const r=new FileReader();r.onload=()=>{$("#iw-paste").value=r.result;};r.readAsText(f);
+    }
+  };
+  iwRestoreXlsxUI();
+};
+// Re-render the sheet picker / status line from already-loaded xlsx state —
+// used both after a fresh parse and when the wizard reopens (e.g. "← Back").
+function iwRestoreXlsxUI(){
+  if(!IW.xlsxRows)return;
+  const err=$("#iw-err"), pickWrap=$("#iw-sheet-row");
+  if(err) err.textContent=`${IW.xlsxRows.length-1} row${IW.xlsxRows.length-1===1?"":"s"} read from "${IW.xlsxSheet}".`;
+  if(pickWrap && IW.xlsxSheets && IW.xlsxSheets.length>1){
+    pickWrap.style.display="";
+    pickWrap.innerHTML=`<label style="font-size:13px" class="muted">Sheet:
+      <select id="iw-sheet-sel">${IW.xlsxSheets.map(s=>`<option value="${esc(s)}" ${s===IW.xlsxSheet?"selected":""}>${esc(s)}</option>`).join("")}</select></label>`;
+    $("#iw-sheet-sel").onchange=e=>{iwLoadXlsx(e.target.value);};
+  }
+}
+// Read the chosen .xlsx as base64 and hand it to the server-side parser
+// (an xlsx is a zip of XML — no browser-side zip library is used or allowed).
+// Optional sheetName re-parses a specific sheet (used by the sheet picker).
+async function iwLoadXlsx(sheetName){
+  const err=$("#iw-err"), pickWrap=$("#iw-sheet-row");
+  if(err) err.innerHTML='<span class="spin"></span>Reading workbook…';
+  try{
+    const buf=await IW.xlsxFile.arrayBuffer();
+    const bytes=new Uint8Array(buf);
+    let binary="";const chunk=0x8000;
+    for(let i=0;i<bytes.length;i+=chunk) binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk));
+    const b64=btoa(binary);
+    const body={filename:IW.xlsxFile.name,data:b64};
+    if(sheetName) body.sheet=sheetName;
+    const r=await fetch("/api/parse-xlsx",{method:"POST",headers:apiHeaders(),body:JSON.stringify(body)});
+    const j=await r.json();
+    if(!j.ok){
+      IW.xlsxRows=null;
+      if(err) err.textContent=(j.error||"Could not read that Excel file.")+" Try exporting as CSV instead.";
+      if(pickWrap){pickWrap.style.display="none";pickWrap.innerHTML="";}
+      return;
+    }
+    IW.xlsxSheets=j.sheets;IW.xlsxSheet=j.sheet;IW.xlsxRows=j.rows;
+    iwRestoreXlsxUI();
+  }catch(e){
+    IW.xlsxRows=null;
+    if(err) err.textContent="Could not read that Excel file. Try exporting as CSV instead.";
+    if(pickWrap){pickWrap.style.display="none";pickWrap.innerHTML="";}
+  }
+}
+window.iwToMap=()=>{
+  let rows;
+  if(IW.xlsxRows && IW.xlsxRows.length){
+    rows=IW.xlsxRows;
+  } else {
+    IW.raw=$("#iw-paste").value;
+    rows=parseTable(IW.raw);
+  }
+  if(rows.length<2){$("#iw-err").textContent="Need a header row plus at least one data row.";return;}
+  IW.headers=rows[0].map(h=>String(h).trim());
+  IW.rows=rows.slice(1);
+  IW.mapping=autoMap(IW.kind,IW.headers);
+  iwMapUI();
+};
+function iwMapUI(aiStatus){
+  const def=ENT[IW.kind].def();
+  const opts=f=>[`<option value="">— skip —</option>`]
+    .concat(def.map(d=>`<option value="${d[0]}" ${f===d[0]?"selected":""}>${d[1]}</option>`)).join("");
+  modal(`<div class="sheet wide"><div class="head"><h2>Import ${IW.kind}s · 2 of 3 — match columns</h2><button class="x" aria-label="Close" onclick="closeModal()">✕</button></div>
+  <div class="body">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="muted" style="font-size:13px">${IW.rows.length} rows found. Check the matches:</span>
+      <button class="btn sec" onclick="iwAiMap()">✨ AI match</button>
+      <span id="iw-aistat" class="muted" style="font-size:13px">${esc(aiStatus||"")}</span>
+    </div>
+    <div class="iw-wrap"><table class="iw-tbl">
+      <tr><th>Your column</th><th>First value</th><th>Imports as</th></tr>
+      ${IW.headers.map((h,i)=>`<tr><td><b>${esc(h)}</b></td><td class="muted">${esc((IW.rows[0]||[])[i]||"")}</td>
+        <td><select class="iw-map" data-i="${i}">${opts(IW.mapping[i])}</select></td></tr>`).join("")}
+    </table></div>
+  </div>
+  <div class="foot"><button class="btn sec" onclick="openImport('${IW.kind}')">← Back</button>
+    <button class="btn" onclick="iwPreview()">Preview →</button></div></div>`);
+}
+window.iwAiMap=async()=>{
+  $("#iw-aistat").innerHTML='<span class="spin"></span>Matching columns…';
+  try{
+    const r=await fetch("/api/ai-map",{method:"POST",headers:apiHeaders(),
+      body:JSON.stringify({kind:IW.kind,headers:IW.headers,
+        fields:ENT[IW.kind].def().map(d=>d[0]),samples:IW.rows.slice(0,3)})});
+    const j=await r.json();
+    if(!j.ok){$("#iw-aistat").textContent=j.error||"AI matching failed";return;}
+    const m=j.mapping||{};
+    IW.mapping=IW.headers.map(h=>m[h]||"");
+    iwMapUI("AI matched "+Object.keys(m).length+" columns — review below.");
+  }catch(e){$("#iw-aistat").textContent="AI request error";}
+};
+window.iwPreview=()=>{
+  IW.mapping=[...document.querySelectorAll(".iw-map")].map(s=>s.value);
+  if(!IW.mapping.some(v=>v)){$("#iw-aistat").textContent="Map at least one column first.";return;}
+  const moneyish=new Set(["paid","est_value","price","gsm"]);
+  IW.records=IW.rows.map(r=>{
+    const o={};
+    IW.mapping.forEach((f,i)=>{ if(f) o[f]=String(r[i]??"").trim(); });
+    for(const k of Object.keys(o)){
+      if(moneyish.has(k)) o[k]=cleanMoneyJS(o[k]);
+    }
+    if(o.date_acquired) o.date_acquired=cleanDateJS(o.date_acquired);
+    if(o.inked_date) o.inked_date=cleanDateJS(o.inked_date);
+    if("shimmer" in o) o.shimmer=/^(y|yes|true|x|1|shimmer)/i.test(String(o.shimmer));
+    if(o.color_match){
+      let c=String(o.color_match).trim();
+      c=c.charAt(0).toUpperCase()+c.slice(1).toLowerCase();
+      if(c==="Gray")c="Grey";
+      o.color_match=c;
+    }
+    if(!o.status) o.status="Keep";
+    return o;
+  }).filter(o=>Object.entries(o).some(([k,v])=>k!=="status"&&v!==""&&v!=null&&v!==false));
+  const def=ENT[IW.kind].def();
+  const shown=def.filter(d=>IW.mapping.includes(d[0]));
+  modal(`<div class="sheet wide"><div class="head"><h2>Import ${IW.kind}s · 3 of 3 — review</h2><button class="x" aria-label="Close" onclick="closeModal()">✕</button></div>
+  <div class="body">
+    <p class="muted" style="font-size:13px"><b>${IW.records.length}</b> ${IW.kind}s ready to import. First rows:</p>
+    <div class="iw-wrap"><table class="iw-tbl">
+      <tr>${shown.map(d=>`<th>${d[1]}</th>`).join("")}</tr>
+      ${IW.records.slice(0,8).map(o=>`<tr>${shown.map(d=>`<td>${esc(o[d[0]])}</td>`).join("")}</tr>`).join("")}
+    </table></div>
+    ${IW.records.length>8?`<p class="muted" style="font-size:12px">…and ${IW.records.length-8} more.</p>`:""}
+  </div>
+  <div class="foot"><button class="btn sec" onclick="iwMapUI()">← Back</button>
+    <button class="btn" onclick="iwImport()">Import ${IW.records.length} ${IW.kind}s</button></div></div>`);
+};
+window.iwImport=async()=>{
+  const kind=IW.kind, e=ENT[kind];
+  IW.records.forEach(o=>{o.id=uid();o.photos=[];o.added_at=new Date().toISOString();e.list().push(o);});
+  await e.save();
+  const n=IW.records.length;IW={};
+  closeModal();
+  S.view="collection"; S.kind=kind;
+  render();toast(`Imported ${n} record${n===1?"":"s"} ✓`);
+};
+
+/* ============================ overflow (⋯) menu ============================ */
+window.toggleMoreMenu=()=>{
+  const m=$("#moreMenu"); const willOpen=m.classList.contains("hidden");
+  m.classList.toggle("hidden");
+  $("#backdrop").classList.toggle("hidden", !willOpen);
+  // #hdr is a sticky stacking context, so #moreMenu's own z-index is capped by the
+  // header's. Lift the whole header above the backdrop while the menu is open,
+  // otherwise the backdrop swallows every click on the menu.
+  $("#hdr").classList.toggle("menuopen", willOpen);
+};
+window.closeMoreMenu=()=>{ $("#moreMenu").classList.add("hidden"); $("#backdrop").classList.add("hidden");
+  $("#hdr").classList.remove("menuopen"); };
+window.openSettings=()=>{
+  modal(`<div class="sheet"><div class="head"><h2>⚙ Settings</h2><button class="x" aria-label="Close" onclick="closeModal()">✕</button></div>
+    <div class="body">
+      <h4 class="sech">DISPLAY</h4>
+      <p class="muted" style="font-size:13px;margin:0 0 10px">Reset the remembered Collection layout and sort order back to defaults.</p>
+      <button class="btn sec" onclick="localStorage.removeItem('pi_layout');localStorage.removeItem('pi_sort');S.layout='gallery';S.sort='';toast('Reset — reopen Collection to see it',true)">Reset layout &amp; sort</button>
+      <h4 class="sech" style="margin-top:22px">THIS DEVICE</h4>
+      <p class="muted" style="font-size:13px">Upload token used when this tracker is opened from your phone:</p>
+      <p style="font-family:Consolas,monospace;font-size:12.5px;word-break:break-all">${esc(S.token||"—")}</p>
+    </div></div>`);
+};
+
+/* ============================ command palette (⌘K / Ctrl+K) ============================ */
+let PAL=null;
+window.openPalette=()=>{
+  PAL={items:buildPaletteItems(""),sel:0};
+  $("#paletteRoot").innerHTML=`<div class="pal-overlay" onclick="if(event.target===this)closePalette()">
+    <div class="pal-box">
+      <input id="palInput" class="pal-input" placeholder="Search pens, inks, papers… or an action" autocomplete="off">
+      <div class="pal-list" id="palList"></div>
+    </div></div>`;
+  renderPaletteList();
+  const inp=document.getElementById("palInput");
+  inp.oninput=()=>{PAL.items=buildPaletteItems(inp.value);PAL.sel=0;renderPaletteList();};
+  inp.onkeydown=onPaletteKeydown;
+  inp.focus();
+};
+window.closePalette=()=>{ $("#paletteRoot").innerHTML=""; PAL=null; };
+function buildPaletteItems(raw){
+  const q=raw.trim().toLowerCase();
+  const has=s=>String(s||"").toLowerCase().includes(q);
+  const actions=[
+    {label:"+ Add a pen", act:()=>{closePalette();openAdd("pen");}},
+    {label:"📷 Photo run", act:()=>{closePalette();startPhotoRun();}},
+    {label:"🧾 Purchase records", act:()=>{closePalette();openRecords();}},
+    {label:"⇄ Import / Export", act:()=>{closePalette();openData();}},
+  ];
+  let items=actions.filter(a=>!q||has(a.label)).map(a=>({type:"action",label:a.label,act:a.act}));
+  S.pens.forEach(p=>{ const label=ENT.pen.label(p);
+    if(!q||has(label)||has(p.nib_grind)||has(p.make)) items.push({type:"pen",label,
+      act:()=>{closePalette();S.view="collection";S.kind="pen";render();openPen(p.id);}}); });
+  S.inks.forEach(i=>{ const label=ENT.ink.label(i);
+    if(!q||has(label)||has(i.brand)) items.push({type:"ink",label,
+      act:()=>{closePalette();S.view="collection";S.kind="ink";render();openInk(i.id);}}); });
+  S.papers.forEach(p=>{ const label=ENT.paper.label(p);
+    if(!q||has(label)) items.push({type:"paper",label,
+      act:()=>{closePalette();S.view="collection";S.kind="paper";render();openPaper(p.id);}}); });
+  return items.slice(0,50);
+}
+function renderPaletteList(){
+  const box=document.getElementById("palList"); if(!box)return;
+  if(!PAL.items.length){ box.innerHTML=`<div class="pal-empty">Nothing matches.</div>`; return; }
+  box.innerHTML=PAL.items.map((it,i)=>
+    `<div class="pal-item ${i===PAL.sel?"sel":""}" onmouseenter="PAL.sel=${i};renderPaletteList()" onclick="PAL.items[${i}].act()">
+      <span>${esc(it.label)}</span><span class="k">${it.type}</span></div>`).join("");
+  const sel=box.querySelector(".pal-item.sel"); if(sel) sel.scrollIntoView({block:"nearest"});
+}
+function onPaletteKeydown(e){
+  if(!PAL)return;
+  if(e.key==="ArrowDown"){e.preventDefault();PAL.sel=Math.min(PAL.sel+1,PAL.items.length-1);renderPaletteList();}
+  else if(e.key==="ArrowUp"){e.preventDefault();PAL.sel=Math.max(PAL.sel-1,0);renderPaletteList();}
+  else if(e.key==="Enter"){e.preventDefault();const it=PAL.items[PAL.sel];if(it)it.act();}
+  else if(e.key==="Escape"){e.preventDefault();closePalette();}
+}
+
+/* ============================ wiring ============================ */
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{S.view=t.dataset.view;toggleSide(false);render();});
+document.querySelectorAll("#bottomNav button[data-nav]").forEach(b=>b.onclick=()=>{
+  const v=b.dataset.nav;
+  if(v==="add"){ $("#addBtn").click(); return; }
+  if(v==="more"){ toggleMoreMenu(); return; }
+  S.view=v; render();
+});
+$("#search").oninput=e=>{S.search=e.target.value;if(S.view==="collection")renderCards();};
+$("#sort").onchange=e=>{S.sort=e.target.value;localStorage.setItem("pi_sort",S.sort);renderCards();};
+document.querySelectorAll("#layoutSeg button[data-layout]").forEach(b=>b.onclick=()=>setLayout(b.dataset.layout));
+document.addEventListener("keydown",e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){ e.preventDefault(); openPalette(); return; }
+  if(e.key==="Escape"){
+    if(PAL){ closePalette(); return; }
+    if(!$("#lightbox").classList.contains("hidden")){ $("#lightbox").classList.add("hidden"); return; }
+    if(!$("#moreMenu").classList.contains("hidden")){ closeMoreMenu(); return; }
+    closeModal();
+  }
+});
+
+load();
+</script>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="g21" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F6DE9C"/><stop offset="1" stop-color="#B0821B"/></linearGradient>
+  <linearGradient id="g18" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#EFD285"/><stop offset="1" stop-color="#A2731A"/></linearGradient>
+  <linearGradient id="g14" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E3C067"/><stop offset="1" stop-color="#8D6316"/></linearGradient>
+  <linearGradient id="gst" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D2DAE2"/><stop offset="1" stop-color="#6E7985"/></linearGradient>
+  <linearGradient id="gun" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9FA9B5"/><stop offset="1" stop-color="#565F6B"/></linearGradient>
+</defs></svg>
+</body>
+</html>
